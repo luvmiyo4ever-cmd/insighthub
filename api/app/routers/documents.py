@@ -1,43 +1,82 @@
 """Synchronous upload contract: 201 only after processing succeeds."""
 
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import APIRouter, HTTPException, UploadFile
 
 from app.core.config import get_settings
 from app.core.db import get_conn
 from app.core.errors import InvalidDocument
-from app.services.ingestion import ingest_document_sync
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 ALLOWED_EXT = (".txt", ".md", ".pdf")
 
 
-@router.post("", status_code=201)
-def upload_document(file: UploadFile):
+@router.post("", status_code=202)
+async def upload_document(file: UploadFile):
+    settings = get_settings()
+
     try:
         if not file.filename or not file.filename.lower().endswith(ALLOWED_EXT):
             raise HTTPException(400, "Chỉ chấp nhận: .txt, .md, .pdf")
+
         if len(file.filename) > 255 or "\x00" in file.filename:
             raise HTTPException(422, "Tên file không hợp lệ.")
-        content = file.file.read(get_settings().max_upload_bytes + 1)
+
+        content = await file.read(settings.max_upload_bytes + 1)
     finally:
-        file.file.close()
-    if len(content) > get_settings().max_upload_bytes:
+        await file.close()
+
+    if len(content) > settings.max_upload_bytes:
         raise HTTPException(413, "File vượt quá giới hạn upload.")
+
     if not content:
         raise InvalidDocument()
+
+    # Tạo document trước với trạng thái pending.
     with get_conn() as conn:
         document_id = conn.execute(
-            "INSERT INTO documents (filename, status) VALUES (%s, 'pending') RETURNING id",
+            "INSERT INTO documents (filename, status) "
+            "VALUES (%s, 'pending') RETURNING id",
             (file.filename,),
         ).fetchone()[0]
-    # Day 1: students replace this synchronous call with a durable queue.
-    chunk_count = ingest_document_sync(document_id, file.filename, content)
-    settings = get_settings()
+
+    # Đưa công việc ingestion vào Redis queue.
+    redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+
+    try:
+        job = await redis.enqueue_job(
+            "ingest_document",
+            document_id,
+            file.filename,
+            content,
+        )
+
+        if job is None:
+            raise RuntimeError("Failed to enqueue ingestion job")
+    except Exception:
+        # Không để document pending mãi nếu Redis/enqueue bị lỗi.
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE documents "
+                "SET status = 'failed', error_code = %s "
+                "WHERE id = %s",
+                ("QUEUE_ERROR", document_id),
+            )
+
+        raise HTTPException(
+            status_code=503,
+            detail="Không thể đưa tài liệu vào hàng đợi xử lý.",
+        )
+    finally:
+        await redis.aclose()
+
+    # Trả về ngay, worker sẽ xử lý document ở background.
     return {
         "id": document_id,
         "filename": file.filename,
-        "status": "ready",
-        "chunk_count": chunk_count,
+        "status": "pending",
+        "chunk_count": 0,
         "mode": settings.rag_mode,
         "embedding_identity_id": settings.embedding_identity_id,
     }
