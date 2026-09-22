@@ -115,17 +115,6 @@ services:
       retries: 10
     # CPU container is optional. On macOS prefer native Ollama for Metal.
 
-  prometheus:
-    image: prom/prometheus:v3.7.3
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-    volumes:
-      - ./tools/mcp/day2/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    ports:
-      - "127.0.0.1:9090:9090"
-    restart: unless-stopped
-
-
 volumes:
   pgdata:
   ollama-data:
