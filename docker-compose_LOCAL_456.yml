@@ -16,21 +16,10 @@ services:
       timeout: 3s
       retries: 12
     mem_limit: 768m
-
-  redis:
-    image: redis:7-alpine
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-    mem_limit: 256m
-
   api:
     build: ./api
     environment:
       DATABASE_URL: postgresql://insighthub:insighthub@postgres:5432/insighthub
-      REDIS_URL: redis://redis:6379/0
       RAG_MODE: ${RAG_MODE:-fixture}
       LLM_PROVIDER: ${LLM_PROVIDER:-fixture}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fixture}
@@ -54,78 +43,28 @@ services:
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-mxbai-embed-large}
       PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-60}
-    ports:
-      - "127.0.0.1:${API_PORT:-8000}:8000"
+    ports: ["127.0.0.1:${API_PORT:-8000}:8000"]
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      postgres: {condition: service_healthy}
     mem_limit: 1g
-
-  ingestion-worker:
-    build: ./api
-    environment:
-      DATABASE_URL: postgresql://insighthub:insighthub@postgres:5432/insighthub
-      REDIS_URL: redis://redis:6379/0
-      RAG_MODE: ${RAG_MODE:-fixture}
-      LLM_PROVIDER: ${LLM_PROVIDER:-fixture}
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fixture}
-      EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
-      EMBEDDING_REVISION: ${EMBEDDING_REVISION:-1}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-2}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
-      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
-      VOYAGE_EMBEDDING_MODEL: ${VOYAGE_EMBEDDING_MODEL:-voyage-3.5}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
-      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-mxbai-embed-large}
-      PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-60}
-    command: arq app.worker.WorkerSettings
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    mem_limit: 1g
-
   web:
     build: ./web
     environment:
       API_INTERNAL_URL: http://api:8000
-    ports:
-      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    ports: ["127.0.0.1:${WEB_PORT:-3000}:3000"]
     depends_on:
-      api:
-        condition: service_healthy
+      api: {condition: service_healthy}
     mem_limit: 512m
-
   ollama:
     image: ollama/ollama:0.33.3@sha256:32931b46719f673c05fdbaa81ccb26da18ea4a1c57590a754874ab28ba269eb2
     profiles: ["ollama"]
-    volumes:
-      - ollama-data:/root/.ollama
+    volumes: ["ollama-data:/root/.ollama"]
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 15s
       timeout: 5s
       retries: 10
     # CPU container is optional. On macOS prefer native Ollama for Metal.
-
-  prometheus:
-    image: prom/prometheus:v3.7.3
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-    volumes:
-      - ./tools/mcp/day2/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    ports:
-      - "127.0.0.1:9090:9090"
-    restart: unless-stopped
-
-
 volumes:
   pgdata:
   ollama-data:
