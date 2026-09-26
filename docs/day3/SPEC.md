@@ -39,10 +39,11 @@ created. `force_destroy = false` protects the state bucket during teardown.
 
 ## Identity and secret boundaries
 
-- GitHub plan trust is exactly `repo:<owner>/<repo>:pull_request` with
+- GitHub plan trust is exactly
+  `repo:<owner>/<repo>:environment:<aws-plan-environment>` with
   `aud=sts.amazonaws.com`.
 - GitHub apply trust is exactly
-  `repo:<owner>/<repo>:ref:refs/heads/<approved-branch>` with the same audience.
+  `repo:<owner>/<repo>:environment:<aws-apply-environment>` with the same audience.
 - EKS IRSA trust is exactly one namespace/service-account subject per role;
   API and worker are separate.
 - No trust policy uses a wildcard subject or principal.

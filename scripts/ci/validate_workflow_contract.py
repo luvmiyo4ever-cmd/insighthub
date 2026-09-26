@@ -25,12 +25,11 @@ def main() -> int:
         if "@latest" in text:
             raise SystemExit(f"{path}: @latest is forbidden")
 
-    ci = (workflow_dir / "ci.yml").read_text(encoding="utf-8")
-    cloud = (workflow_dir / "iac.yml").read_text(encoding="utf-8")
-    if "id-token: write" in ci:
-        raise SystemExit("ci.yml must never request an OIDC token")
-    if "pull_request:" not in ci or "workflow_dispatch:" not in cloud:
-        raise SystemExit("expected PR CI and manual cloud workflow triggers are missing")
+    workflow = (workflow_dir / "iac.yml").read_text(encoding="utf-8")
+    if "pull_request:" not in workflow or "workflow_dispatch:" not in workflow:
+        raise SystemExit("iac.yml must include PR CI and manual cloud workflow triggers")
+    if workflow.count("id-token: write") != 2:
+        raise SystemExit("only the plan and apply jobs may request an OIDC token")
     required_cloud_fragments = (
         "github.repository == vars.CANONICAL_REPOSITORY",
         "github.event.repository.visibility",
@@ -45,9 +44,9 @@ def main() -> int:
         "OPENAI_API_KEY",
     )
     for fragment in required_cloud_fragments:
-        if fragment not in cloud:
+        if fragment not in workflow:
             raise SystemExit(f"cloud workflow missing contract fragment: {fragment}")
-    if "actions/upload-artifact" not in cloud or "actions/download-artifact" not in cloud:
+    if "actions/upload-artifact" not in workflow or "actions/download-artifact" not in workflow:
         raise SystemExit("cloud workflow must use immutable plan artifacts")
     print(f"PASS: validated {len(workflows)} workflow files")
     return 0

@@ -84,9 +84,14 @@ variable "github_repository" {
   }
 }
 
-variable "github_apply_branch" {
+variable "github_plan_environment" {
   type    = string
-  default = "main"
+  default = "aws-plan"
+}
+
+variable "github_apply_environment" {
+  type    = string
+  default = "aws-apply"
 }
 
 variable "github_oidc_thumbprint" {

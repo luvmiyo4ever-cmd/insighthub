@@ -1,18 +1,16 @@
 # Day 03 CI and reviewed cloud execution
 
-## Workflow split
+## One workflow with separated trust boundaries
 
-`ci.yml` runs on push and pull request. It has no `id-token` permission and
-does not configure AWS credentials. It covers workflow contracts, Terraform
-format/validate/TFLint, strict Checkov, positive/negative Conftest fixtures,
-Day 01 application tests, and local image builds without push.
+`iac.yml` runs the static path on push and pull request:
+`workflow-contract -> fmt-lint -> security-policy -> application-tests -> image-build`.
+Those jobs have no `id-token` permission and do not configure AWS credentials.
 
-`iac.yml` is `workflow_dispatch` only. It is fail-closed to the
-canonical repository, `main`, a private repository, a protected `aws-plan`
-environment, and a protected `aws-apply` environment. The plan role and apply
-role are separate protected variables. A fork cannot satisfy the canonical
-repository condition and therefore cannot receive cloud identity from this
-workflow.
+The manual cloud path continues only after those jobs pass:
+`preflight -> plan-review -> apply`. It is fail-closed to the canonical
+repository, `main`, a private repository, a protected `aws-plan` environment,
+and a protected `aws-apply` environment. A fork can run static CI but cannot
+reach an OIDC job.
 
 ## Required protected configuration
 
@@ -30,7 +28,7 @@ Environment secrets:
 - `OPENAI_API_KEY` in `aws-plan`.
 
 `aws-apply` must require named reviewers and prevent self-approval. The AWS
-roles must trust only the exact GitHub OIDC subjects documented in
+roles trust only the exact GitHub OIDC environment subjects documented in
 `docs/day3/SPEC.md`; no wildcard subject or principal is acceptable.
 
 ## Plan/apply boundary

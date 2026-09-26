@@ -13,7 +13,7 @@ exist or that an IAM/Kubernetes action works in a live account.
 | S3 native lockfile | `infra/bootstrap/README.md`, backend examples | inspect backend for `use_lockfile = true`; later read-only backend check | no DynamoDB lock resource; live lock check still pending |
 | State protection | `infra/bootstrap/main.tf` | Checkov + source review | versioning, SSE-KMS, public access block, TLS deny, `force_destroy=false` |
 | Standard tags | `infra/modules/standard-tags` | Checkov + source review | Project/Environment/Owner/CostCenter/ManagedBy/LabId/ExpiresAt defined |
-| Exact GitHub OIDC trust | `infra/platform/main.tf` | source review; later IAM read-only policy fetch | exact repo PR/branch subjects and `aud=sts.amazonaws.com`; runtime pending |
+| Exact GitHub OIDC trust | `infra/platform/main.tf` | source review; later IAM read-only policy fetch | exact repo/environment subjects and `aud=sts.amazonaws.com`; runtime pending |
 | Exact IRSA trust | `infra/platform/main.tf` | source review; later IAM/EKS read-only check | exact namespace/service-account subjects; runtime pending |
 | No secret value in source | platform secret resource and examples | `rg -n "secret_version|password\s*=|token\s*=|AKIA|BEGIN PRIVATE" infra` | no credential value; example placeholders only |
 | Private data path | RDS/Redis SG, subnet groups | Checkov + source review; later AWS describe | no public DB/cache ingress; runtime pending |
