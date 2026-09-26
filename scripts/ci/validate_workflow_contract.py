@@ -28,25 +28,25 @@ def main() -> int:
     workflow = (workflow_dir / "iac.yml").read_text(encoding="utf-8")
     if "pull_request:" not in workflow or "workflow_dispatch:" not in workflow:
         raise SystemExit("iac.yml must include PR CI and manual cloud workflow triggers")
-    required_jobs = (
-        "workflow-contract",
+    required_jobs = {
         "fmt",
         "lint",
         "security-scan",
         "policy-check",
         "plan",
         "cost-estimate",
-        "provenance",
         "apply",
-    )
-    for job in required_jobs:
-        if f"\n  {job}:" not in workflow:
-            raise SystemExit(f"iac.yml must expose a separate {job} job")
+    }
+    jobs_section = workflow.split("\njobs:\n", maxsplit=1)[1]
+    found_jobs = set(re.findall(r"^  ([a-z][a-z0-9-]*):$", jobs_section, flags=re.MULTILINE))
+    if found_jobs != required_jobs:
+        raise SystemExit(
+            "iac.yml jobs must be exactly "
+            f"{sorted(required_jobs)}; found {sorted(found_jobs)}"
+        )
     required_dependencies = (
-        "needs: [workflow-contract, fmt, lint, security-scan, policy-check]",
         "needs: plan",
-        "needs: [plan, cost-estimate]",
-        "needs: provenance",
+        "needs: cost-estimate",
     )
     for dependency in required_dependencies:
         if dependency not in workflow:

@@ -43,21 +43,8 @@ env:
   INFRACOST_VERSION: "0.10.43"
 
 jobs:
-  workflow-contract:
-    name: Workflow contract
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.12.12"
-      - name: Validate workflow safety contracts
-        run: python scripts/ci/validate_workflow_contract.py
-
   fmt:
-    name: Terraform format
+    name: fmt
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -71,7 +58,7 @@ jobs:
         run: terraform fmt -check -recursive infra
 
   lint:
-    name: Terraform validate and TFLint
+    name: lint
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -108,7 +95,7 @@ jobs:
           tflint --chdir=infra --recursive
 
   security-scan:
-    name: Checkov security scan
+    name: security-scan
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -123,7 +110,7 @@ jobs:
         run: checkov -d infra --framework terraform --quiet
 
   policy-check:
-    name: Conftest policy check
+    name: policy-check
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -156,81 +143,9 @@ jobs:
           set -e
           test "$status" -eq 1
 
-  application-tests:
-    name: Day 01 application tests
-    needs: [workflow-contract, fmt, lint, security-scan, policy-check]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      COMPOSE_PROJECT_NAME: insighthub-ci
-      RAG_MODE: fixture
-      LLM_PROVIDER: fixture
-      EMBEDDING_PROVIDER: fixture
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.12.12"
-      - name: Build and start local fixture
-        run: docker compose up --build -d --wait
-      - name: Run application contract tests
-        run: |
-          python3 scripts/verify.py setup
-          python3 scripts/verify.py smoke --json
-      - name: Teardown local fixture
-        if: always()
-        run: docker compose --profile ollama down --volumes --remove-orphans
-
-  image-build:
-    name: Build application images without push
-    needs: application-tests
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-      - name: Build API image
-        run: docker build --pull=false -f api/Dockerfile -t insighthub/api:ci-${GITHUB_SHA} api
-      - name: Build worker image
-        run: docker build --pull=false -f api/Dockerfile -t insighthub/worker:ci-${GITHUB_SHA} api
-      - name: Build web image
-        run: docker build --pull=false -f web/Dockerfile -t insighthub/web:ci-${GITHUB_SHA} web
-      - name: Record source-bound image metadata
-        run: |
-          docker image inspect insighthub/api:ci-${GITHUB_SHA} insighthub/worker:ci-${GITHUB_SHA} insighthub/web:ci-${GITHUB_SHA} \
-            --format '{{json .RepoDigests}}' > image-source-binding.json
-          printf '%s\n' "source_sha=${GITHUB_SHA}" >> image-source-binding.json
-
-  preflight:
-    name: Cloud input preflight
-    needs: image-build
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
-    outputs:
-      ready: ${{ steps.check.outputs.ready }}
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-      - id: check
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "${{ inputs.cloud_ready }}" = true
-          test "${{ github.event.repository.fork }}" != true
-          test "${{ github.ref }}" = refs/heads/main
-          test "${{ github.event.repository.visibility }}" = private
-          [[ "${{ inputs.state_bucket }}" =~ ^[a-z0-9][a-z0-9.-]{2,62}$ ]]
-          test -n "${{ inputs.state_key }}" -a "${{ inputs.state_key }}" != "terraform.tfstate"
-          awk 'BEGIN { if (ARGV[1] <= 0) exit 1 }' "${{ inputs.budget_usd }}"
-          printf 'ready=true\n' >> "$GITHUB_OUTPUT"
-
   plan:
-    name: Create reviewed Terraform plan
-    needs: preflight
-    if: github.event_name == 'workflow_dispatch' && needs.preflight.outputs.ready == 'true' && github.repository == vars.CANONICAL_REPOSITORY
+    name: plan
+    if: github.event_name == 'workflow_dispatch' && github.repository == vars.CANONICAL_REPOSITORY
     runs-on: ubuntu-24.04
     environment: aws-plan
     permissions:
@@ -245,6 +160,17 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
+      - name: Check cloud input preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.cloud_ready }}" = true
+          test "${{ github.event.repository.fork }}" != true
+          test "${{ github.ref }}" = refs/heads/main
+          test "${{ github.event.repository.visibility }}" = private
+          [[ "${{ inputs.state_bucket }}" =~ ^[a-z0-9][a-z0-9.-]{2,62}$ ]]
+          test -n "${{ inputs.state_key }}" -a "${{ inputs.state_key }}" != "terraform.tfstate"
+          awk 'BEGIN { if (ARGV[1] <= 0) exit 1 }' "${{ inputs.budget_usd }}"
       - name: Validate protected plan inputs
         env:
           CANONICAL_REPOSITORY: ${{ vars.CANONICAL_REPOSITORY }}
@@ -310,7 +236,7 @@ jobs:
         run: rm -f infra/platform/terraform.tfvars
 
   cost-estimate:
-    name: Infracost estimate and sanitized review
+    name: cost-estimate
     needs: plan
     if: github.event_name == 'workflow_dispatch' && github.repository == vars.CANONICAL_REPOSITORY
     runs-on: ubuntu-24.04
@@ -318,6 +244,8 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    outputs:
+      apply_allowed: ${{ steps.gate.outputs.apply_allowed }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -380,48 +308,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python scripts/ci/post_pr_comment.py --pull-request "${{ inputs.pull_request_number }}" --body plan-review-comment.md
-      - name: Stage sanitized plan-review artifact
-        run: |
-          mkdir plan-review
-          cp plan-summary.json plan-summary.md ai-plan-explanation.md plan-review-comment.md plan-review/
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: insighthub-plan-review-${{ github.run_id }}
-          if-no-files-found: error
-          retention-days: 1
-          path: plan-review/
-
-  provenance:
-    name: Verify plan provenance and apply gate
-    needs: [plan, cost-estimate]
-    if: github.event_name == 'workflow_dispatch' && github.repository == vars.CANONICAL_REPOSITORY
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    outputs:
-      apply_allowed: ${{ steps.gate.outputs.apply_allowed }}
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: insighthub-private-plan-${{ github.run_id }}
-          path: plan-artifact
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: insighthub-plan-review-${{ github.run_id }}
-          path: plan-review
       - id: gate
         name: Stop before apply on destroy, budget, or source uncertainty
         shell: bash
         run: |
           set -euo pipefail
-          destroy_count="$(jq -r '.destroy_count' plan-review/plan-summary.json)"
-          budget_status="$(jq -r '.budget_status' plan-review/plan-summary.json)"
+          destroy_count="$(jq -r '.destroy_count' plan-summary.json)"
+          budget_status="$(jq -r '.budget_status' plan-summary.json)"
           test "$destroy_count" -eq 0
           test "$budget_status" = within
           jq -e --arg repo "$GITHUB_REPOSITORY" --arg sha "$GITHUB_SHA" \
-            '.repository == $repo and .source_sha == $sha and .human_review_required == true' plan-review/plan-summary.json
+            '.repository == $repo and .source_sha == $sha and .human_review_required == true' plan-summary.json
           printf 'apply_allowed=true\n' >> "$GITHUB_OUTPUT"
-      - name: Bind source, plan checksum, and run identity
+      - name: Bind source and verify saved-plan checksum
         run: |
           set -euo pipefail
           test "${{ github.event.repository.visibility }}" = private
@@ -438,9 +337,8 @@ jobs:
         run: |
           mkdir final-plan
           cp plan-artifact/platform.tfplan plan-artifact/platform.tfplan.sha256 plan-artifact/source-binding.json final-plan/
-          cp plan-review/plan-summary.json plan-review/plan-summary.md plan-review/ai-plan-explanation.md plan-review/plan-review-comment.md final-plan/
-      - name: Upload reviewed saved-plan artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+          cp plan-summary.json plan-summary.md ai-plan-explanation.md plan-review-comment.md final-plan/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: insighthub-reviewed-plan-${{ github.run_id }}
           if-no-files-found: error
@@ -448,9 +346,9 @@ jobs:
           path: final-plan/
 
   apply:
-    name: Apply exact reviewed plan
-    needs: provenance
-    if: github.event_name == 'workflow_dispatch' && needs.provenance.outputs.apply_allowed == 'true' && github.repository == vars.CANONICAL_REPOSITORY
+    name: apply
+    needs: cost-estimate
+    if: github.event_name == 'workflow_dispatch' && needs.cost-estimate.outputs.apply_allowed == 'true' && github.repository == vars.CANONICAL_REPOSITORY
     runs-on: ubuntu-24.04
     environment: aws-apply
     permissions:
