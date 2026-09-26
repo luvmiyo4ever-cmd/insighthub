@@ -362,7 +362,13 @@ resource "aws_db_parameter_group" "postgres" {
 
   parameter {
     name         = "rds.log_retention_period"
-    value        = tostring(var.rds_log_retention_days * 1440)
+    value        = tostring(var.rds_instance_log_retention_minutes)
+    apply_method = "immediate"
+  }
+
+  parameter {
+    name         = "rds.force_ssl"
+    value        = "1"
     apply_method = "immediate"
   }
 }

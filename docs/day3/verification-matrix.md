@@ -41,7 +41,7 @@ exist or that an IAM/Kubernetes action works in a live account.
 
 | Check(s) | Reason not silently skipped | Required decision |
 | --- | --- | --- |
-| CKV_AWS_356, CKV_AWS_129, CKV2_AWS_30, CKV_AWS_118, CKV_AWS_161, CKV_AWS_157, CKV_AWS_293, CKV_AWS_353 | Remediation is present in source: exact IAM reads, PostgreSQL log export/parameter group, Enhanced Monitoring, IAM DB auth, Multi-AZ, deletion protection, and Performance Insights | rerun pinned Checkov and review plan/cost before declaring pass |
+| CKV_AWS_356, CKV_AWS_129, CKV_AWS_338, CKV2_AWS_30, CKV2_AWS_69, CKV_AWS_118, CKV_AWS_161, CKV_AWS_157, CKV_AWS_293, CKV_AWS_353 | Remediation is present in source: exact IAM reads, 365-day KMS CloudWatch retention, PostgreSQL log export/parameter group with `rds.force_ssl=1`, Enhanced Monitoring, IAM DB auth, Multi-AZ, deletion protection, and Performance Insights | rerun pinned Checkov; AWS application values must require TLS before deployment |
 | CKV_AWS_191, CKV_AWS_31, CKV2_AWS_50 | Remediation is present: exact CMK input, protected Redis AUTH token, two nodes, Multi-AZ, and automatic failover | fresh Checkov plus runtime TLS/AUTH/failover evidence; update AWS Helm secret injection before deploy |
 | CKV2_AWS_57 | Rotation schedule and Lambda invoke permission are present | provide an existing reviewed, provider-specific rotation Lambda; AWS must successfully run its test rotation |
 | CKV2_AWS_62, CKV_AWS_18, CKV_AWS_144 | State bucket has EventBridge notification, access-log destination, and SSE-KMS cross-region replication configuration | provide pre-owned log/replica buckets and destination KMS policy; verify replication after apply |

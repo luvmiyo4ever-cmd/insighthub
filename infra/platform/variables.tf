@@ -180,12 +180,23 @@ variable "rds_log_kms_key_id" {
 
 variable "rds_log_retention_days" {
   type        = number
-  default     = 1
-  description = "Short-lab CloudWatch PostgreSQL log retention."
+  default     = 365
+  description = "CloudWatch PostgreSQL log retention required by the security baseline."
 
   validation {
     condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.rds_log_retention_days)
     error_message = "Use a CloudWatch Logs-supported retention period."
+  }
+}
+
+variable "rds_instance_log_retention_minutes" {
+  type        = number
+  default     = 1440
+  description = "RDS instance-side PostgreSQL log retention before logs remain only in CloudWatch."
+
+  validation {
+    condition     = var.rds_instance_log_retention_minutes >= 1440 && var.rds_instance_log_retention_minutes <= 10080
+    error_message = "RDS PostgreSQL instance log retention must be between 1440 and 10080 minutes."
   }
 }
 
