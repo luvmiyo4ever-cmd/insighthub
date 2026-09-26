@@ -14,6 +14,8 @@ locals {
   eks_oidc_hostpath = replace(var.eks_oidc_issuer, "https://", "")
 }
 
+data "aws_partition" "current" {}
+
 data "tls_certificate" "eks_oidc" {
   url = var.eks_oidc_issuer
 }
@@ -84,19 +86,60 @@ resource "aws_iam_role" "github_plan" {
 }
 
 data "aws_iam_policy_document" "github_plan_permissions" {
+  # These AWS read APIs do not support resource-level permissions. Keep their
+  # list explicit and limit calls to the reviewed provider region.
   statement {
     effect = "Allow"
     actions = [
-      "ec2:Describe*",
-      "eks:Describe*",
-      "eks:List*",
-      "iam:Get*",
-      "iam:List*",
-      "rds:Describe*",
-      "elasticache:Describe*",
-      "secretsmanager:DescribeSecret"
+      "ec2:DescribeAvailabilityZones",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeRouteTables",
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeTags",
+      "ec2:DescribeVpcs",
+      "elasticache:DescribeCacheClusters",
+      "elasticache:DescribeCacheParameters",
+      "elasticache:DescribeCacheSubnetGroups",
+      "elasticache:DescribeEngineDefaultParameters",
+      "elasticache:DescribeReplicationGroups",
+      "rds:DescribeDBEngineVersions",
+      "rds:DescribeDBInstances",
+      "rds:DescribeDBSubnetGroups"
     ]
     resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.aws_region]
+    }
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "iam:GetOpenIDConnectProvider",
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListRolePolicies"
+    ]
+    resources = [
+      aws_iam_openid_connect_provider.eks.arn,
+      aws_iam_openid_connect_provider.github.arn,
+      aws_iam_role.github_plan.arn,
+      aws_iam_role.github_apply.arn,
+      aws_iam_role.api_irsa.arn,
+      aws_iam_role.worker_irsa.arn,
+      aws_iam_role.rds_monitoring.arn
+    ]
+  }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["secretsmanager:DescribeSecret"]
+    resources = concat([aws_secretsmanager_secret.app.arn], var.provider_secret_arns)
   }
 
   statement {
@@ -219,6 +262,47 @@ resource "aws_secretsmanager_secret" "app" {
   recovery_window_in_days = 7
 }
 
+resource "aws_lambda_permission" "app_secret_rotation" {
+  statement_id  = "AllowSecretsManagerRotation"
+  action        = "lambda:InvokeFunction"
+  function_name = var.app_secret_rotation_lambda_arn
+  principal     = "secretsmanager.amazonaws.com"
+  source_arn    = aws_secretsmanager_secret.app.arn
+}
+
+resource "aws_secretsmanager_secret_rotation" "app" {
+  secret_id           = aws_secretsmanager_secret.app.id
+  rotation_lambda_arn = var.app_secret_rotation_lambda_arn
+
+  rotation_rules {
+    automatically_after_days = var.app_secret_rotation_days
+  }
+
+  depends_on = [aws_lambda_permission.app_secret_rotation]
+}
+
+data "aws_iam_policy_document" "rds_monitoring_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["monitoring.rds.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "rds_monitoring" {
+  name               = "${var.project}-${var.environment}-rds-monitoring"
+  assume_role_policy = data.aws_iam_policy_document.rds_monitoring_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "rds_monitoring" {
+  role       = aws_iam_role.rds_monitoring.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+}
+
 resource "aws_security_group" "data" {
   name                   = "${var.project}-${var.environment}-data"
   description            = "Private PostgreSQL and Redis access from EKS nodes only"
@@ -256,30 +340,67 @@ resource "aws_db_subnet_group" "postgres" {
   subnet_ids = var.private_subnet_ids
 }
 
+resource "aws_cloudwatch_log_group" "postgres" {
+  for_each = toset(["postgresql", "upgrade"])
+
+  name              = "/aws/rds/instance/${var.project}-${var.environment}-postgres/${each.value}"
+  kms_key_id        = var.rds_log_kms_key_id
+  retention_in_days = var.rds_log_retention_days
+}
+
+resource "aws_db_parameter_group" "postgres" {
+  name        = "${var.project}-${var.environment}-postgres"
+  family      = "postgres16"
+  description = "InsightHub PostgreSQL logging parameters"
+
+  # DDL captures schema migration activity without logging document DML.
+  parameter {
+    name         = "log_statement"
+    value        = "ddl"
+    apply_method = "immediate"
+  }
+
+  parameter {
+    name         = "rds.log_retention_period"
+    value        = tostring(var.rds_log_retention_days * 1440)
+    apply_method = "immediate"
+  }
+}
+
 resource "aws_db_instance" "postgres" {
-  identifier                    = "${var.project}-${var.environment}-postgres"
-  engine                        = "postgres"
-  engine_version                = var.rds_engine_version
-  instance_class                = var.rds_instance_class
-  allocated_storage             = var.rds_storage_gb
-  storage_type                  = "gp3"
-  storage_encrypted             = true
-  kms_key_id                    = var.rds_secret_kms_key_id
-  db_name                       = var.rds_database_name
-  username                      = var.rds_master_username
-  manage_master_user_password   = true
-  master_user_secret_kms_key_id = var.rds_secret_kms_key_id
-  port                          = 5432
-  publicly_accessible           = false
-  multi_az                      = false
-  deletion_protection           = var.rds_deletion_protection
-  auto_minor_version_upgrade    = true
-  skip_final_snapshot           = var.rds_skip_final_snapshot
-  final_snapshot_identifier     = var.rds_skip_final_snapshot ? null : "${var.project}-${var.environment}-postgres-final"
-  backup_retention_period       = var.rds_backup_retention_days
-  db_subnet_group_name          = aws_db_subnet_group.postgres.name
-  vpc_security_group_ids        = [aws_security_group.data.id]
-  copy_tags_to_snapshot         = true
+  identifier                            = "${var.project}-${var.environment}-postgres"
+  engine                                = "postgres"
+  engine_version                        = var.rds_engine_version
+  instance_class                        = var.rds_instance_class
+  allocated_storage                     = var.rds_storage_gb
+  storage_type                          = "gp3"
+  storage_encrypted                     = true
+  kms_key_id                            = var.rds_secret_kms_key_id
+  db_name                               = var.rds_database_name
+  username                              = var.rds_master_username
+  manage_master_user_password           = true
+  master_user_secret_kms_key_id         = var.rds_secret_kms_key_id
+  port                                  = 5432
+  publicly_accessible                   = false
+  multi_az                              = true
+  deletion_protection                   = true
+  iam_database_authentication_enabled   = true
+  enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
+  performance_insights_enabled          = true
+  performance_insights_kms_key_id       = var.rds_log_kms_key_id
+  performance_insights_retention_period = 7
+  monitoring_interval                   = 60
+  monitoring_role_arn                   = aws_iam_role.rds_monitoring.arn
+  auto_minor_version_upgrade            = true
+  skip_final_snapshot                   = var.rds_skip_final_snapshot
+  final_snapshot_identifier             = var.rds_skip_final_snapshot ? null : "${var.project}-${var.environment}-postgres-final"
+  backup_retention_period               = var.rds_backup_retention_days
+  db_subnet_group_name                  = aws_db_subnet_group.postgres.name
+  parameter_group_name                  = aws_db_parameter_group.postgres.name
+  vpc_security_group_ids                = [aws_security_group.data.id]
+  copy_tags_to_snapshot                 = true
+
+  depends_on = [aws_cloudwatch_log_group.postgres]
 }
 
 resource "aws_elasticache_subnet_group" "redis" {
@@ -293,12 +414,17 @@ resource "aws_elasticache_replication_group" "redis" {
   engine                     = "redis"
   engine_version             = var.redis_engine_version
   node_type                  = var.redis_node_type
-  num_cache_clusters         = var.redis_num_cache_clusters
+  num_cache_clusters         = 2
   port                       = 6379
   subnet_group_name          = aws_elasticache_subnet_group.redis.name
   security_group_ids         = [aws_security_group.data.id]
   transit_encryption_enabled = true
   at_rest_encryption_enabled = true
+  kms_key_id                 = var.redis_kms_key_id
+  auth_token                 = var.redis_auth_token
+  auth_token_update_strategy = "SET"
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
   auto_minor_version_upgrade = true
   apply_immediately          = true
 }

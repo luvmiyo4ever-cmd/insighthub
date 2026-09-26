@@ -33,27 +33,18 @@ exist or that an IAM/Kubernetes action works in a live account.
 - TFLint 0.64.0 passes recursively with no issues.
 - Conftest 0.69.0 / OPA 1.19.0: positive fixture passes; negative fixture
   returns the expected exit code 1 with explicit denials.
-- Checkov 3.3.19: 140 passed, 15 failed, 0 skipped. Its optional online
-  guideline lookup was unreachable in the sandbox; local Terraform checks
-  still executed. The 15 failures are recorded below rather than skipped.
+- Checkov 3.3.19 baseline: 140 passed, 15 failed, 0 skipped. The RDS and IAM
+  source has subsequently been tightened; a fresh Checkov run is still
+  required before any of those findings can be marked passed.
 
-## Checkov exceptions requiring review
+## Checkov findings pending a fresh scan
 
 | Check(s) | Reason not silently skipped | Required decision |
 | --- | --- | --- |
-| CKV_AWS_356 | AWS Describe/List APIs commonly require `Resource:"*"`; this statement is read-only and separate from exact state object permissions | IAM reviewer confirms action list and no mutation |
-| CKV_AWS_129, CKV2_AWS_30 | RDS logs add CloudWatch cost and retention/handling requirements not approved for this short lab | decide logging destination/retention before apply |
-| CKV_AWS_118 | Enhanced monitoring requires a monitoring role and additional telemetry cost | approve role/cost or keep deferred |
-| CKV_AWS_161 | IAM DB authentication would change the existing app credential/connection contract | application owner must approve a separate auth migration |
-| CKV_AWS_293 | Deletion protection conflicts with short-lived teardown; final snapshot remains default-on | human must approve the teardown window |
-| CKV_AWS_353 | Performance Insights can add cost and is not needed for the Day 03 source gate | approve observability scope |
-| CKV_AWS_191 | Redis uses encryption flags but no customer-managed KMS key by default to avoid creating/owning another key in a short lab | choose an existing reviewed CMK or accept AWS-managed encryption |
-| CKV_AWS_31 | Redis auth token handling must not put a secret in tfvars/state and is not wired into the Day 01 queue contract | design secret injection and app configuration first |
-| CKV2_AWS_50 | Multi-AZ/automatic failover needs more cache nodes and increases cost; default is one node | approve availability/cost tradeoff |
-| CKV2_AWS_57 | Secret rotation needs an owner, rotation Lambda, and an application reload plan | assign rotation owner before production use |
-| CKV2_AWS_62 | State bucket notifications are not required for the lock protocol and would add an unapproved destination | define evidence/alert destination if required |
-| CKV_AWS_18 | Access logging needs a separate log bucket and retention policy | approve separate log ownership/cost |
-| CKV_AWS_144 | Cross-region replication doubles storage/transfer and conflicts with local-first short lab | approve DR budget and second-region ownership |
+| CKV_AWS_356, CKV_AWS_129, CKV2_AWS_30, CKV_AWS_118, CKV_AWS_161, CKV_AWS_157, CKV_AWS_293, CKV_AWS_353 | Remediation is present in source: exact IAM reads, PostgreSQL log export/parameter group, Enhanced Monitoring, IAM DB auth, Multi-AZ, deletion protection, and Performance Insights | rerun pinned Checkov and review plan/cost before declaring pass |
+| CKV_AWS_191, CKV_AWS_31, CKV2_AWS_50 | Remediation is present: exact CMK input, protected Redis AUTH token, two nodes, Multi-AZ, and automatic failover | fresh Checkov plus runtime TLS/AUTH/failover evidence; update AWS Helm secret injection before deploy |
+| CKV2_AWS_57 | Rotation schedule and Lambda invoke permission are present | provide an existing reviewed, provider-specific rotation Lambda; AWS must successfully run its test rotation |
+| CKV2_AWS_62, CKV_AWS_18, CKV_AWS_144 | State bucket has EventBridge notification, access-log destination, and SSE-KMS cross-region replication configuration | provide pre-owned log/replica buckets and destination KMS policy; verify replication after apply |
 
-These are exceptions to the current short-lab design, not evidence that the
-checks are satisfied. No Checkov skip configuration is committed.
+These source changes are not evidence that the checks or their external
+dependencies are satisfied. No Checkov skip configuration is committed.

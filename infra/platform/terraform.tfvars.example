@@ -23,7 +23,11 @@ state_lock_object_arn       = "arn:aws:s3:::REPLACE_WITH_BOOTSTRAP_BUCKET/insigh
 provider_secret_arns        = ["arn:aws:secretsmanager:REPLACE_WITH_REGION:REPLACE_WITH_ACCOUNT:secret:REPLACE_WITH_PROVIDER_SECRET"]
 rds_engine_version          = "16.REPLACE_WITH_SUPPORTED_MINOR"
 rds_master_username         = "REPLACE_WITH_NON_SECRET_DB_USERNAME"
+rds_log_kms_key_id          = "arn:aws:kms:REPLACE_WITH_REGION:REPLACE_WITH_ACCOUNT:key/REPLACE_WITH_EXISTING_KEY_ID"
+app_secret_rotation_lambda_arn = "arn:aws:lambda:REPLACE_WITH_REGION:REPLACE_WITH_ACCOUNT:function:REPLACE_WITH_REVIEWED_ROTATION_FUNCTION"
 redis_engine_version        = "7.REPLACE_WITH_SUPPORTED_MINOR"
+redis_kms_key_id            = "arn:aws:kms:REPLACE_WITH_REGION:REPLACE_WITH_ACCOUNT:key/REPLACE_WITH_EXISTING_KEY_ID"
+# redis_auth_token must be supplied only in protected PLATFORM_TFVARS_B64.
 secret_name                 = "insighthub/lab/app"
 apply_policy_json           = "{\"Version\":\"2012-10-17\",\"Statement\":[] }"
 

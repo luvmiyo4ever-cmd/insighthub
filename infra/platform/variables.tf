@@ -157,11 +157,6 @@ variable "rds_backup_retention_days" {
   default = 1
 }
 
-variable "rds_deletion_protection" {
-  type    = bool
-  default = false
-}
-
 variable "rds_skip_final_snapshot" {
   type    = bool
   default = false
@@ -171,6 +166,48 @@ variable "rds_secret_kms_key_id" {
   type     = string
   nullable = true
   default  = null
+}
+
+variable "rds_log_kms_key_id" {
+  type        = string
+  description = "Existing customer-managed KMS key ARN for RDS logs and Performance Insights."
+
+  validation {
+    condition     = can(regex("^arn:[^:]+:kms:[^:]+:[0-9]{12}:key/.+$", var.rds_log_kms_key_id))
+    error_message = "Use an explicit existing customer-managed KMS key ARN."
+  }
+}
+
+variable "rds_log_retention_days" {
+  type        = number
+  default     = 1
+  description = "Short-lab CloudWatch PostgreSQL log retention."
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.rds_log_retention_days)
+    error_message = "Use a CloudWatch Logs-supported retention period."
+  }
+}
+
+variable "app_secret_rotation_lambda_arn" {
+  type        = string
+  description = "Existing reviewed Lambda ARN that implements this app secret's provider-specific rotation contract."
+
+  validation {
+    condition     = can(regex("^arn:[^:]+:lambda:[^:]+:[0-9]{12}:function:.+$", var.app_secret_rotation_lambda_arn))
+    error_message = "Use an explicit existing rotation Lambda ARN."
+  }
+}
+
+variable "app_secret_rotation_days" {
+  type        = number
+  default     = 30
+  description = "Approved automatic rotation cadence for the app secret."
+
+  validation {
+    condition     = var.app_secret_rotation_days >= 1 && var.app_secret_rotation_days <= 365
+    error_message = "Use a rotation cadence between 1 and 365 days."
+  }
 }
 
 variable "redis_engine_version" {
@@ -187,9 +224,25 @@ variable "redis_node_type" {
   default = "cache.t4g.micro"
 }
 
-variable "redis_num_cache_clusters" {
-  type    = number
-  default = 1
+variable "redis_kms_key_id" {
+  type        = string
+  description = "Existing customer-managed KMS key ARN for ElastiCache encryption at rest."
+
+  validation {
+    condition     = can(regex("^arn:[^:]+:kms:[^:]+:[0-9]{12}:key/.+$", var.redis_kms_key_id))
+    error_message = "Use an explicit existing customer-managed KMS key ARN."
+  }
+}
+
+variable "redis_auth_token" {
+  type        = string
+  sensitive   = true
+  description = "Protected ElastiCache AUTH token; supply only through a protected secret, never source or example tfvars."
+
+  validation {
+    condition     = length(var.redis_auth_token) >= 16 && length(var.redis_auth_token) <= 128 && can(regex("^[A-Za-z0-9!&#$^<>-]+$", var.redis_auth_token))
+    error_message = "Redis AUTH token must be 16-128 characters using ElastiCache-supported characters."
+  }
 }
 
 variable "secret_name" {

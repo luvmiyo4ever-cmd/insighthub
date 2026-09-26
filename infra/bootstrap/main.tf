@@ -121,3 +121,126 @@ resource "aws_s3_bucket_policy" "state_tls_only" {
     }]
   })
 }
+
+resource "aws_s3_bucket_logging" "state" {
+  bucket        = aws_s3_bucket.state.id
+  target_bucket = var.state_access_log_bucket_name
+  target_prefix = "insighthub-state/"
+
+  target_object_key_format {
+    partitioned_prefix {
+      partition_date_source = "EventTime"
+    }
+  }
+}
+
+resource "aws_s3_bucket_notification" "state" {
+  bucket      = aws_s3_bucket.state.id
+  eventbridge = true
+}
+
+data "aws_iam_policy_document" "state_replication_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["s3.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "state_replication" {
+  name               = "${var.project}-${var.environment}-state-replication"
+  assume_role_policy = data.aws_iam_policy_document.state_replication_trust.json
+}
+
+data "aws_iam_policy_document" "state_replication_permissions" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetReplicationConfiguration",
+      "s3:ListBucket"
+    ]
+    resources = [aws_s3_bucket.state.arn]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObjectVersionForReplication",
+      "s3:GetObjectVersionAcl",
+      "s3:GetObjectVersionTagging"
+    ]
+    resources = ["${aws_s3_bucket.state.arn}/*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:ReplicateDelete",
+      "s3:ReplicateObject",
+      "s3:ReplicateTags"
+    ]
+    resources = ["${var.state_replica_bucket_arn}/*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey"
+    ]
+    resources = [aws_kms_key.state.arn]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Encrypt",
+      "kms:GenerateDataKey"
+    ]
+    resources = [var.state_replica_kms_key_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "state_replication" {
+  name   = "${var.project}-${var.environment}-state-replication"
+  role   = aws_iam_role.state_replication.id
+  policy = data.aws_iam_policy_document.state_replication_permissions.json
+}
+
+resource "aws_s3_bucket_replication_configuration" "state" {
+  bucket = aws_s3_bucket.state.id
+  role   = aws_iam_role.state_replication.arn
+
+  rule {
+    id       = "cross-region-state-replication"
+    priority = 1
+    status   = "Enabled"
+
+    filter {}
+
+    delete_marker_replication {
+      status = "Disabled"
+    }
+
+    destination {
+      bucket        = var.state_replica_bucket_arn
+      storage_class = "STANDARD"
+
+      encryption_configuration {
+        replica_kms_key_id = var.state_replica_kms_key_arn
+      }
+    }
+
+    source_selection_criteria {
+      sse_kms_encrypted_objects {
+        status = "Enabled"
+      }
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.state]
+}

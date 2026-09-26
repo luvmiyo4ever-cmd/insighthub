@@ -39,6 +39,7 @@ Thumbs.db
 # --- Logs / scratch ---
 tmp/
 *.tmp
+.checkov-tmp/
 
 # Local evidence and release outputs
 evidence/
