@@ -1,0 +1,46 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "insighthub.fullname" . }}-migration
+  labels:
+    {{- include "insighthub.labels" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "insighthub.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        {{- toYaml .Values.migration.podSecurityContext | nindent 8 }}
+      containers:
+        - name: migration
+          image: {{ .Values.migration.image }}
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - >-
+              until pg_isready -d "$DATABASE_URL"; do sleep 2; done;
+              psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /migrations/init.sql
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtime.databaseUrlSecret.name }}
+                  key: {{ .Values.runtime.databaseUrlSecret.key }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: migration
+              mountPath: /migrations
+              readOnly: true
+      volumes:
+        - name: migration
+          configMap:
+            name: {{ include "insighthub.fullname" . }}-migration
+{{- end }}

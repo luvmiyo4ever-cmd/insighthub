@@ -1,0 +1,26 @@
+runtime:
+  ragMode: real
+  llmProvider: gemini
+  embeddingProvider: gemini
+
+postgres:
+  enabled: false
+
+redis:
+  enabled: false
+
+secretsStore:
+  enabled: true
+  awsRegion: REPLACE_WITH_AWS_REGION
+  awsSecretName: REPLACE_WITH_SECRETS_MANAGER_NAME
+
+ingress:
+  # Day 3 does not create public HTTPS/ALB/DNS. Keep private access until a
+  # later approved TLS overlay provides a real domain and certificate.
+  enabled: false
+  className: nginx
+  hosts:
+    - host: insighthub-staging.example.invalid
+      paths:
+        - path: /
+          pathType: Prefix

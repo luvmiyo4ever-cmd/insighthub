@@ -85,6 +85,14 @@ services:
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-mxbai-embed-large}
       PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-60}
     command: arq app.worker.WorkerSettings
+    # The shared API image exposes an HTTP healthcheck, but the ARQ worker does
+    # not serve HTTP. Verify the actual worker process instead.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys; sys.exit(0 if any('arq app.worker.WorkerSettings' in open('/proc/'+p+'/cmdline','rb').read().decode(errors='ignore') for p in os.listdir('/proc') if p.isdigit()) else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy

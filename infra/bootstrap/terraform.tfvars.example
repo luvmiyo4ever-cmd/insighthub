@@ -1,0 +1,8 @@
+aws_region       = "REPLACE_WITH_REGION"
+project          = "insighthub"
+environment      = "lab"
+owner            = "REPLACE_WITH_OWNER"
+cost_center      = "REPLACE_WITH_COST_CENTER"
+lab_id           = "REPLACE_WITH_UNIQUE_LAB_ID"
+expires_at       = "REPLACE_WITH_ISO8601_TEARDOWN_TIME"
+state_bucket_name = "REPLACE_WITH_GLOBALLY_UNIQUE_BUCKET_NAME"
