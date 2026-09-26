@@ -28,6 +28,29 @@ def main() -> int:
     workflow = (workflow_dir / "iac.yml").read_text(encoding="utf-8")
     if "pull_request:" not in workflow or "workflow_dispatch:" not in workflow:
         raise SystemExit("iac.yml must include PR CI and manual cloud workflow triggers")
+    required_jobs = (
+        "workflow-contract",
+        "fmt",
+        "lint",
+        "security-scan",
+        "policy-check",
+        "plan",
+        "cost-estimate",
+        "provenance",
+        "apply",
+    )
+    for job in required_jobs:
+        if f"\n  {job}:" not in workflow:
+            raise SystemExit(f"iac.yml must expose a separate {job} job")
+    required_dependencies = (
+        "needs: [workflow-contract, fmt, lint, security-scan, policy-check]",
+        "needs: plan",
+        "needs: [plan, cost-estimate]",
+        "needs: provenance",
+    )
+    for dependency in required_dependencies:
+        if dependency not in workflow:
+            raise SystemExit(f"iac.yml missing required job dependency: {dependency}")
     if workflow.count("id-token: write") != 2:
         raise SystemExit("only the plan and apply jobs may request an OIDC token")
     required_cloud_fragments = (

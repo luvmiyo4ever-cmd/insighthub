@@ -2,15 +2,21 @@
 
 ## One workflow with separated trust boundaries
 
-`iac.yml` runs the static path on push and pull request:
-`workflow-contract -> fmt-lint -> security-policy -> application-tests -> image-build`.
-Those jobs have no `id-token` permission and do not configure AWS credentials.
+`iac.yml` runs the static path on push and pull request. Its independently
+visible jobs are `workflow-contract`, `fmt`, `lint`, `security-scan`, and
+`policy-check`; the latter four run in parallel. `application-tests` waits for
+all five gates, then `image-build` waits for the application contract.
+Those static jobs have no `id-token` permission and do not configure AWS
+credentials.
 
 The manual cloud path continues only after those jobs pass:
-`preflight -> plan-review -> apply`. It is fail-closed to the canonical
-repository, `main`, a private repository, a protected `aws-plan` environment,
-and a protected `aws-apply` environment. A fork can run static CI but cannot
-reach an OIDC job.
+`preflight -> plan -> cost-estimate -> provenance -> apply`. `plan` creates
+the private saved plan; `cost-estimate` creates only its sanitized review;
+`provenance` verifies the checksum, source binding, destroy count, and budget
+before making an apply artifact. It is fail-closed to the canonical repository,
+`main`, a private repository, a protected `aws-plan` environment, and a
+protected `aws-apply` environment. A fork can run static CI but cannot reach
+an OIDC job.
 
 ## Required protected configuration
 
