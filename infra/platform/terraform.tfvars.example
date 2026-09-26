@@ -1,0 +1,31 @@
+aws_region                  = "REPLACE_WITH_REGION"
+project                     = "insighthub"
+environment                 = "lab"
+owner                       = "REPLACE_WITH_OWNER"
+cost_center                 = "REPLACE_WITH_COST_CENTER"
+lab_id                      = "REPLACE_WITH_UNIQUE_LAB_ID"
+expires_at                  = "REPLACE_WITH_ISO8601_TEARDOWN_TIME"
+vpc_id                      = "vpc-REPLACE"
+vpc_cidr                    = "10.0.0.0/16"
+private_subnet_ids          = ["subnet-REPLACE-A", "subnet-REPLACE-B"]
+eks_oidc_issuer             = "https://oidc.eks.REPLACE_WITH_REGION.amazonaws.com/id/REPLACE"
+eks_node_security_group_id  = "sg-REPLACE"
+kubernetes_host             = "https://REPLACE_WITH_EKS_ENDPOINT"
+kubernetes_ca_certificate   = "REPLACE_WITH_BASE64_CA_DATA"
+kubernetes_token             = "REPLACE_WITH_EPHEMERAL_TOKEN"
+github_repository           = "REPLACE_WITH_OWNER/REPOSITORY"
+github_apply_branch         = "main"
+github_oidc_thumbprint      = "REPLACE_WITH_REVIEWED_40_CHAR_THUMBPRINT"
+state_bucket_arn            = "arn:aws:s3:::REPLACE_WITH_BOOTSTRAP_BUCKET"
+state_object_arn            = "arn:aws:s3:::REPLACE_WITH_BOOTSTRAP_BUCKET/insighthub/platform/terraform.tfstate"
+state_lock_object_arn       = "arn:aws:s3:::REPLACE_WITH_BOOTSTRAP_BUCKET/insighthub/platform/terraform.tfstate.tflock"
+provider_secret_arns        = ["arn:aws:secretsmanager:REPLACE_WITH_REGION:REPLACE_WITH_ACCOUNT:secret:REPLACE_WITH_PROVIDER_SECRET"]
+rds_engine_version          = "16.REPLACE_WITH_SUPPORTED_MINOR"
+rds_master_username         = "REPLACE_WITH_NON_SECRET_DB_USERNAME"
+redis_engine_version        = "7.REPLACE_WITH_SUPPORTED_MINOR"
+secret_name                 = "insighthub/lab/app"
+apply_policy_json           = "{\"Version\":\"2012-10-17\",\"Statement\":[] }"
+
+# The apply policy is intentionally an empty placeholder. It must be replaced
+# by a human-reviewed, exact policy before any apply; it must not contain a
+# credential, Action:* or Resource:*.

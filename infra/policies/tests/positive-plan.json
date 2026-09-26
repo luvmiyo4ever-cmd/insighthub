@@ -1,0 +1,84 @@
+{
+  "resource_changes": [
+    {
+      "address": "aws_db_instance.postgres",
+      "type": "aws_db_instance",
+      "change": {
+        "after": {
+          "publicly_accessible": false,
+          "storage_encrypted": true,
+          "tags": {
+            "Project": "insighthub",
+            "Environment": "lab",
+            "Owner": "team",
+            "CostCenter": "training",
+            "ManagedBy": "terraform",
+            "LabId": "lab-01",
+            "ExpiresAt": "2026-09-25T18:00:00Z"
+          }
+        }
+      }
+    },
+    {
+      "address": "aws_elasticache_replication_group.redis",
+      "type": "aws_elasticache_replication_group",
+      "change": {
+        "after": {
+          "transit_encryption_enabled": true,
+          "at_rest_encryption_enabled": true,
+          "tags": {
+            "Project": "insighthub",
+            "Environment": "lab",
+            "Owner": "team",
+            "CostCenter": "training",
+            "ManagedBy": "terraform",
+            "LabId": "lab-01",
+            "ExpiresAt": "2026-09-25T18:00:00Z"
+          }
+        }
+      }
+    },
+    {
+      "address": "aws_security_group.data",
+      "type": "aws_security_group",
+      "change": {
+        "after": {
+          "ingress": [
+            {
+              "from_port": 5432,
+              "to_port": 5432,
+              "cidr_blocks": ["10.0.0.0/16"]
+            }
+          ],
+          "tags": {
+            "Project": "insighthub",
+            "Environment": "lab",
+            "Owner": "team",
+            "CostCenter": "training",
+            "ManagedBy": "terraform",
+            "LabId": "lab-01",
+            "ExpiresAt": "2026-09-25T18:00:00Z"
+          }
+        }
+      }
+    },
+    {
+      "address": "aws_iam_role.api_irsa",
+      "type": "aws_iam_role",
+      "change": {
+        "after": {
+          "assume_role_policy": "{\"Statement\":[{\"Principal\":{\"Federated\":\"arn:aws:iam::123456789012:oidc-provider/oidc.eks.example\"}}]}",
+          "tags": {
+            "Project": "insighthub",
+            "Environment": "lab",
+            "Owner": "team",
+            "CostCenter": "training",
+            "ManagedBy": "terraform",
+            "LabId": "lab-01",
+            "ExpiresAt": "2026-09-25T18:00:00Z"
+          }
+        }
+      }
+    }
+  ]
+}

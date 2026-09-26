@@ -1,0 +1,149 @@
+name: InsightHub CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  TERRAFORM_VERSION: "1.15.8"
+  TFLINT_VERSION: "0.64.0"
+  CHECKOV_VERSION: "3.3.19"
+  CONFTEST_VERSION: "0.69.0"
+
+jobs:
+  workflow-contract:
+    name: Workflow contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12.12"
+      - name: Validate workflow safety contracts
+        run: python scripts/ci/validate_workflow_contract.py
+
+  fmt-lint:
+    name: Terraform fmt, validate, and TFLint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - name: Install pinned TFLint release
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="tflint_linux_amd64.zip"
+          api="https://api.github.com/repos/terraform-linters/tflint/releases/tags/v${TFLINT_VERSION}"
+          url="$(curl --fail --silent --show-error --location "$api" | jq -r --arg asset "$asset" '.assets[] | select(.name == $asset) | .browser_download_url')"
+          digest="$(curl --fail --silent --show-error --location "$api" | jq -r --arg asset "$asset" '.assets[] | select(.name == $asset) | .digest' | sed 's/^sha256://')"
+          test -n "$url" -a -n "$digest"
+          curl --fail --silent --show-error --location "$url" --output /tmp/tflint.zip
+          echo "$digest  /tmp/tflint.zip" | sha256sum --check
+          unzip -q /tmp/tflint.zip -d /tmp/tflint
+          install /tmp/tflint/tflint "$HOME/.local/bin/tflint"
+          tflint --version
+      - name: Format and validate every Terraform root
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform fmt -check -recursive infra
+          for root in infra/bootstrap infra/platform; do
+            terraform -chdir="$root" init -backend=false -input=false -no-color
+            terraform -chdir="$root" validate -no-color
+          done
+          tflint --chdir=infra --recursive
+
+  security-policy:
+    name: Checkov and Conftest policy gates
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12.12"
+      - name: Install pinned Checkov
+        run: python -m pip install --disable-pip-version-check --no-cache-dir "checkov==${CHECKOV_VERSION}"
+      - name: Install and checksum pinned Conftest release
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          api="https://api.github.com/repos/open-policy-agent/conftest/releases/tags/v${CONFTEST_VERSION}"
+          url="$(curl --fail --silent --show-error --location "$api" | jq -r --arg asset "$asset" '.assets[] | select(.name == $asset) | .browser_download_url')"
+          digest="$(curl --fail --silent --show-error --location "$api" | jq -r --arg asset "$asset" '.assets[] | select(.name == $asset) | .digest' | sed 's/^sha256://')"
+          test -n "$url" -a -n "$digest"
+          curl --fail --silent --show-error --location "$url" --output /tmp/conftest.tar.gz
+          echo "$digest  /tmp/conftest.tar.gz" | sha256sum --check
+          tar -xzf /tmp/conftest.tar.gz -C /tmp
+          install /tmp/conftest "$HOME/.local/bin/conftest"
+          conftest --version
+      - name: Run strict security scan
+        run: checkov -d infra --framework terraform --quiet
+      - name: Run positive policy fixture
+        run: conftest test -p infra/policies infra/policies/tests/positive-plan.json
+      - name: Assert negative policy fixture is denied
+        shell: bash
+        run: |
+          set +e
+          conftest test -p infra/policies infra/policies/tests/negative-plan.json
+          status=$?
+          set -e
+          test "$status" -eq 1
+
+  application-tests:
+    name: Day 01 application tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: insighthub-ci
+      RAG_MODE: fixture
+      LLM_PROVIDER: fixture
+      EMBEDDING_PROVIDER: fixture
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12.12"
+      - name: Build and start local fixture
+        run: docker compose up --build -d --wait
+      - name: Run application contract tests
+        run: |
+          python3 scripts/verify.py setup
+          python3 scripts/verify.py smoke --json
+      - name: Teardown local fixture
+        if: always()
+        run: docker compose --profile ollama down --volumes --remove-orphans
+
+  image-build:
+    name: Build application images without push
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Build API image
+        run: docker build --pull=false -f api/Dockerfile -t insighthub/api:ci-${GITHUB_SHA} api
+      - name: Build worker image
+        run: docker build --pull=false -f ingestion-worker/Dockerfile -t insighthub/worker:ci-${GITHUB_SHA} ingestion-worker
+      - name: Build web image
+        run: docker build --pull=false -f web/Dockerfile -t insighthub/web:ci-${GITHUB_SHA} web
+      - name: Record source-bound image metadata
+        run: |
+          docker image inspect insighthub/api:ci-${GITHUB_SHA} insighthub/worker:ci-${GITHUB_SHA} insighthub/web:ci-${GITHUB_SHA} \
+            --format '{{json .RepoDigests}}' > image-source-binding.json
+          printf '%s\n' "source_sha=${GITHUB_SHA}" >> image-source-binding.json

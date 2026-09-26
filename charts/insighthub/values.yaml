@@ -1,0 +1,192 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+serviceAccounts:
+  web:
+    create: true
+    annotations: {}
+  api:
+    create: true
+    annotations: {}
+  worker:
+    create: true
+    annotations: {}
+
+runtime:
+  ragMode: real
+  llmProvider: gemini
+  embeddingProvider: gemini
+  llmModel: ""
+  embeddingModel: ""
+  embeddingDim: 1024
+  embeddingRevision: "1"
+  llmMaxTokens: 1024
+  providerTimeoutSeconds: "60"
+  chunkSize: 800
+  chunkOverlap: 100
+  retrievalTopK: 5
+  databaseUrlSecret:
+    name: insighthub-runtime-secrets
+    key: DATABASE_URL
+  redisUrlSecret:
+    name: insighthub-runtime-secrets
+    key: REDIS_URL
+
+postgres:
+  enabled: false
+  image: pgvector/pgvector:0.8.2-pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+  servicePort: 5432
+  storage:
+    size: 2Gi
+    storageClassName: ""
+  auth:
+    existingSecret: insighthub-runtime-secrets
+    passwordKey: POSTGRES_PASSWORD
+  # The upstream PostgreSQL entrypoint initializes its data directory before
+  # switching to the database user. Keep this local-only exception scoped to
+  # the StatefulSet; app workloads always run as UID/GID 1001.
+  podSecurityContext:
+    runAsNonRoot: false
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+
+redis:
+  enabled: false
+  image: redis:7-alpine
+  servicePort: 6379
+  storage:
+    size: 1Gi
+    storageClassName: ""
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+api:
+  replicaCount: 1
+  image:
+    repository: insighthub/api
+    tag: kind
+    pullPolicy: IfNotPresent
+  service:
+    port: 8000
+  env: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+
+worker:
+  replicaCount: 1
+  image:
+    repository: insighthub/api
+    tag: kind
+    pullPolicy: IfNotPresent
+  env: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+web:
+  replicaCount: 1
+  image:
+    repository: insighthub/web
+    tag: kind
+    pullPolicy: IfNotPresent
+  service:
+    port: 3000
+  env: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+
+migration:
+  enabled: true
+  image: pgvector/pgvector:0.8.2-pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+  backoffLimit: 4
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+
+secretsStore:
+  enabled: false
+  provider: aws
+  secretName: insighthub-runtime-secrets
+  awsSecretName: ""
+  awsRegion: ""
+  keys:
+    - DATABASE_URL
+    - REDIS_URL
+    - GEMINI_API_KEY
+    - GEMINI_CHAT_MODEL
+    - GEMINI_EMBEDDING_MODEL
+    - ANTHROPIC_API_KEY
+    - OPENAI_API_KEY
+    - VOYAGE_API_KEY
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: insighthub.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+networkPolicy:
+  enabled: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
