@@ -105,7 +105,7 @@ Worker:
 
 Ưu tiên:
 
-* `Running-Project-Specification-Student.md` - source of truth.
+* `Running-Project-Specification-Student.md` mục 0, 4, 5, 6, 7 là nguồn yêu cầu.
 * `docker-compose.yml` - services.
 * `api/app/routers/documents.py` - upload contract.
 * `api/app/services/ingestion.py` - ingestion logic.
@@ -117,3 +117,19 @@ Worker:
 Day 1 completion:
 
 `Compose -> HTTP 202 -> Redis -> Worker -> ready -> Verifier`
+
+## Day 2 - MCP observability
+
+Day 2 dùng Codex/Inspector để kết nối và gọi thật bốn backend MCP: Filesystem, Docker/container, Kubernetes và Prometheus.
+
+* Filesystem chỉ được allow-list `D:\proj\insighthub`.
+* Kubernetes dùng ServiceAccount `insighthub/mcp-readonly`, chỉ có verb `get`, `list`, `watch`; không cấp quyền ghi/xóa.
+* Prometheus chỉ dùng truy vấn đọc như `list_targets` và instant query.
+* Docker chỉ dùng tool đọc container/log; không start, stop, remove hoặc sửa cấu hình.
+* Pin version/package/image; không dùng `@latest` trong evidence hoặc cấu hình nộp bài.
+* Ghi tool name, input, output, timestamp và screenshot vào `docs/day2/`.
+* Không ghi secret, token, kubeconfig hoặc nội dung tài liệu vào evidence.
+
+Day 2 completion:
+
+`4 MCP connected -> read-only calls -> RBAC verified -> evidence -> debug session -> quiz`

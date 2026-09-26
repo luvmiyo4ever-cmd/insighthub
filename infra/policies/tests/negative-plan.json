@@ -1,0 +1,51 @@
+{
+  "resource_changes": [
+    {
+      "address": "aws_db_instance.public",
+      "type": "aws_db_instance",
+      "change": {
+        "after": {
+          "publicly_accessible": true,
+          "storage_encrypted": false,
+          "tags": {}
+        }
+      }
+    },
+    {
+      "address": "aws_elasticache_replication_group.insecure",
+      "type": "aws_elasticache_replication_group",
+      "change": {
+        "after": {
+          "transit_encryption_enabled": false,
+          "at_rest_encryption_enabled": false,
+          "tags": {}
+        }
+      }
+    },
+    {
+      "address": "aws_security_group.public_data",
+      "type": "aws_security_group",
+      "change": {
+        "after": {
+          "ingress": [
+            {
+              "from_port": 5432,
+              "to_port": 6379,
+              "cidr_blocks": ["0.0.0.0/0"]
+            }
+          ],
+          "tags": {}
+        }
+      }
+    },
+    {
+      "address": "aws_iam_role.wildcard",
+      "type": "aws_iam_role",
+      "change": {
+        "after": {
+          "assume_role_policy": "{\"Statement\":[{\"Principal\":{\"Federated\":\"*\"}}]}"
+        }
+      }
+    }
+  ]
+}
