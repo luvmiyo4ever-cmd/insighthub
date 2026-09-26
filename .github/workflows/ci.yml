@@ -51,7 +51,9 @@ jobs:
           curl --fail --silent --show-error --location "$url" --output /tmp/tflint.zip
           echo "$digest  /tmp/tflint.zip" | sha256sum --check
           unzip -q /tmp/tflint.zip -d /tmp/tflint
-          install /tmp/tflint/tflint "$HOME/.local/bin/tflint"
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 /tmp/tflint/tflint "$HOME/.local/bin/tflint"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           tflint --version
       - name: Format and validate every Terraform root
         shell: bash
