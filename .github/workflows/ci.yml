@@ -90,7 +90,9 @@ jobs:
           curl --fail --silent --show-error --location "$url" --output /tmp/conftest.tar.gz
           echo "$digest  /tmp/conftest.tar.gz" | sha256sum --check
           tar -xzf /tmp/conftest.tar.gz -C /tmp
-          install /tmp/conftest "$HOME/.local/bin/conftest"
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 /tmp/conftest "$HOME/.local/bin/conftest"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           conftest --version
       - name: Run strict security scan
         run: checkov -d infra --framework terraform --quiet
