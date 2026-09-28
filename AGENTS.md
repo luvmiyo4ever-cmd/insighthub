@@ -272,3 +272,12 @@ Day 5 giữ nguyên API, Redis queue, retry, embedding identity và năm thành 
 * Scale chỉ qua identity `chatops-mutator`, RBAC namespace chỉ `get`, `patch` `deployments/scale` cho resource `insighthub-api`; không dùng lại Slack secret.
 * Evidence local hiện có: MH8 audit, MH9 scale `1→2→1`, MH10 `pytest` 28 pass. MH5/MH6, luồng Slack của MH7 và MH11 chỉ được gọi hoàn thành khi có ảnh hoặc Loom thật.
 * Nguồn: `chatops-bot/`, `deploy/chatops-mcp/`, `deploy/chatops-mutator/`, `docs/day5/`.
+
+## Day 6 - Security, Governance & FinOps
+
+* Giữ nguyên API, Redis queue, retry và embedding identity. Không tạo cloud resource từ local.
+* Nguồn chính: `security/`, `api/app/services/guardrails.py`, `security/litellm-config.yaml`, `docker-compose*.yml`, `tools/grafana/dashboards/insighthub-overview.json`.
+* Đã kiểm chứng local: LiteLLM health, InsightHub gọi qua gateway, Prometheus scrape API/worker/LiteLLM, Grafana panel `LLM Cost (LiteLLM)`.
+* Chưa được ghi PASS: final Promptfoo no-HIGH (`redteam-rerun-results.yaml`: 120 cases, 87 pass/33 fail); MH8 thiếu trace thật đủ 3 workload và budget-denied; MH11 AWS Budgets chưa chạy; `red-team-report.html` chưa phải native scan report.
+* Should-have CI Promptfoo, prompt/semantic cache, model routing, PII runtime và fallback chỉ ghi PASS khi có evidence tương ứng.
+* Không suy diễn từ cấu hình dự kiến; mọi kết luận Day 6 phải kèm output runtime/report thật.

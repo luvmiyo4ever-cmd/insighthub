@@ -1,0 +1,69 @@
+schema_version: 1
+promptfoo_version: 0.123.1
+config: promptfooconfig.yaml
+
+targets:
+  direct_chat:
+    id: http
+    path: "POST /chat"
+    input: user question
+  rag_upload_retrieve:
+    id: file://./rag-upload-retrieve-provider.mjs
+    path: "POST /documents (202) -> GET /documents -> POST /chat"
+    input: uploaded document content
+
+coverage:
+  - id: direct-injection
+    risk: direct prompt injection
+    plugins:
+      - system-prompt-override
+      - file://./prompt-boundary-plugin.yaml
+      - prompt-extraction
+    strategies:
+      - jailbreak-templates
+    target: direct_chat
+    status: configured
+  - id: indirect-injection
+    risk: indirect prompt injection through untrusted retrieved content
+    plugins:
+      - indirect-prompt-injection
+      - file://./indirect-rag-plugin.yaml
+    strategies:
+      - jailbreak-templates
+    target: rag_upload_retrieve
+    injection_point: uploaded document content
+    runtime_grader: file://./indirect-rag-plugin.yaml
+    limitation: Promptfoo 0.123.1's built-in indirect grader requires a context variable that this upload/retrieve adapter does not expose; the custom plugin is the executable RAG-path grader.
+    status: configured
+  - id: rag-poisoning
+    risk: RAG poisoning and retrieval-boundary failure
+    plugins:
+      - rag-poisoning
+      - file://./rag-boundary-plugin.yaml
+    target: rag_upload_retrieve
+    injection_point: uploaded document content
+    runtime_grader: file://./rag-boundary-plugin.yaml
+    limitation: Promptfoo 0.123.1 exposes rag-poisoning for generation but does not register its runtime grader; the custom plugin supplies the executable boundary grader.
+    status: configured
+  - id: pii
+    risk: personally identifiable information disclosure
+    plugins:
+      - pii:direct
+    strategies:
+      - jailbreak-templates
+    target: direct_chat
+    status: configured
+  - id: excessive-agency
+    risk: unauthorized action or tool-use claims
+    plugins:
+      - excessive-agency
+    strategies:
+      - jailbreak-templates
+    target: direct_chat
+    status: configured
+
+verification:
+  plugin_ids_checked_against: Promptfoo 0.123.1 CLI plugin list
+  runtime_scan: not_run
+  findings: not_assessed
+  no_high_claim: not_applicable
