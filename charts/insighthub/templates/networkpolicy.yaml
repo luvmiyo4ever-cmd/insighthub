@@ -11,6 +11,15 @@ spec:
   ingress:
     - from:
         - podSelector: {}
+    {{- if .Values.observability.serviceMonitor.enabled }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.observability.serviceMonitor.prometheusNamespace | quote }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+    {{- end }}
   egress:
     - to:
         - podSelector: {}

@@ -1,0 +1,35 @@
+# Local Day 4 only. The Slack webhook stays in the Kubernetes Secret
+# `insighthub-alertmanager-slack`, never in this file or Git.
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    secrets:
+      - insighthub-alertmanager-slack
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: "null"
+      group_by: ["alertname", "service", "signal"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - matchers:
+            - service="insighthub"
+            - severity=~"warning|critical"
+          receiver: slack-alerts
+    receivers:
+      - name: "null"
+      - name: slack-alerts
+        slack_configs:
+          - api_url_file: /etc/alertmanager/secrets/insighthub-alertmanager-slack/api-url
+            channel: "#alerts"
+            send_resolved: true
+            title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+            text: >-
+              *Service:* {{ .CommonLabels.service }}
+              *Signal:* {{ .CommonLabels.signal }}
+              *Severity:* {{ .CommonLabels.severity }}
+              *Summary:* {{ .CommonAnnotations.summary }}
+              *Description:* {{ .CommonAnnotations.description }}

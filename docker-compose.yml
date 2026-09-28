@@ -54,6 +54,9 @@ services:
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-mxbai-embed-large}
       PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-60}
+      LLM_INPUT_COST_USD_PER_MILLION_TOKENS: ${LLM_INPUT_COST_USD_PER_MILLION_TOKENS:-0}
+      LLM_OUTPUT_COST_USD_PER_MILLION_TOKENS: ${LLM_OUTPUT_COST_USD_PER_MILLION_TOKENS:-0}
+      EMBEDDING_COST_USD_PER_MILLION_TOKENS: ${EMBEDDING_COST_USD_PER_MILLION_TOKENS:-0}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     depends_on:
@@ -68,6 +71,7 @@ services:
     environment:
       DATABASE_URL: postgresql://insighthub:insighthub@postgres:5432/insighthub
       REDIS_URL: redis://redis:6379/0
+      WORKER_METRICS_PORT: 8001
       RAG_MODE: ${RAG_MODE:-fixture}
       LLM_PROVIDER: ${LLM_PROVIDER:-fixture}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fixture}
@@ -84,6 +88,9 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-mxbai-embed-large}
       PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-60}
+      LLM_INPUT_COST_USD_PER_MILLION_TOKENS: ${LLM_INPUT_COST_USD_PER_MILLION_TOKENS:-0}
+      LLM_OUTPUT_COST_USD_PER_MILLION_TOKENS: ${LLM_OUTPUT_COST_USD_PER_MILLION_TOKENS:-0}
+      EMBEDDING_COST_USD_PER_MILLION_TOKENS: ${EMBEDDING_COST_USD_PER_MILLION_TOKENS:-0}
     command: arq app.worker.WorkerSettings
     # The shared API image exposes an HTTP healthcheck, but the ARQ worker does
     # not serve HTTP. Verify the actual worker process instead.
@@ -131,6 +138,25 @@ services:
       - ./tools/mcp/day2/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./tools/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./tools/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     restart: unless-stopped
 
 

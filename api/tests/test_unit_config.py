@@ -57,6 +57,10 @@ class ConfigTests(unittest.TestCase):
             ("provider_timeout_seconds", "nan"),
             ("embedding_batch_size", 0),
             ("max_upload_bytes", -1),
+            ("day4_chaos_llm_delay_seconds", -1),
+            ("day4_chaos_llm_delay_seconds", 61),
+            ("day4_chaos_worker_delay_seconds", -1),
+            ("day4_chaos_worker_delay_seconds", 61),
         ):
             with self.subTest(key=key), self.assertRaises(ValidationError):
                 with configured(**{key: value}):

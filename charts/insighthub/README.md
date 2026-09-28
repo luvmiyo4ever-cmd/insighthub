@@ -22,6 +22,53 @@ names, retry behavior, embedding identity, or the schema dimension.
   prerequisites; the chart does not install a security gateway or a later-day
   platform component.
 
+## Prometheus API scrape
+
+The API ServiceMonitor is disabled by default because it requires a Prometheus
+Operator installation and its `monitoring.coreos.com/v1` CRD. Enable it only
+in a cluster where that operator is installed:
+
+```powershell
+helm upgrade --install insighthub charts/insighthub `
+  -n insighthub `
+  -f charts/insighthub/values-local.yaml `
+  --set observability.serviceMonitor.enabled=true
+```
+
+`additionalLabels` must match the installed Prometheus
+`serviceMonitorSelector`; for example, set the release label used by a
+kube-prometheus-stack installation. The local observability overlay renders
+five monitors: API `/metrics`, worker `/metrics`, Redis exporter, PostgreSQL
+exporter, and a blackbox probe for web `/api/health`.
+
+```powershell
+helm upgrade --install insighthub charts/insighthub `
+  -n insighthub `
+  -f charts/insighthub/values-local.yaml `
+  -f charts/insighthub/values-observability-local.yaml `
+  --wait
+kubectl -n insighthub get servicemonitor
+```
+
+The overlay is local-only: its database/cache exporters use the runtime Secret
+created by `scripts/kind-lab.ps1`. For managed RDS or ElastiCache, enable an
+exporter only after its endpoint, TLS settings, and least-privilege monitoring
+credential are supplied by protected deployment configuration.
+
+## Grafana dashboard
+
+Docker Compose provisions Grafana from `tools/grafana/` at
+`http://localhost:3001`, with its Prometheus datasource and the immutable
+`InsightHub Overview` dashboard. The dashboard has request rate/error/duration,
+ARQ queue depth, token usage, RAG p95 latency, estimated cost, pod CPU/memory,
+and a Kubernetes deployment annotation overlay. Pod/deployment data requires
+kube-state-metrics and cAdvisor (as provided by kube-prometheus-stack), so it
+is intentionally empty in a Compose-only run.
+
+Cost is an estimate only. Set the three `*_COST_USD_PER_MILLION_TOKENS`
+environment variables from a reviewed price card; at the default zero values,
+the cost panel has no data rather than presenting token counts as currency.
+
 ## Static checks
 
 ```powershell

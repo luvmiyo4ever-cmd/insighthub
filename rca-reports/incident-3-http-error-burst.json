@@ -1,0 +1,21 @@
+{
+  "incident_id": "incident-3-http-error-burst",
+  "status": "resolved",
+  "started_at": "2026-09-27T17:11:00.000Z",
+  "ended_at": "2026-09-27T17:20:00.000Z",
+  "scenario": "Controlled HTTP 503 burst in the local Kubernetes lab",
+  "hypotheses": [
+    "The HTTP error-rate anomaly was caused by the explicitly enabled, exact-header Day 4 chaos hook rather than an unbounded API failure.",
+    "Restoring DAY4_CHAOS_ENABLED=false would stop the induced 503 responses and return the error ratio to its baseline."
+  ],
+  "samples": [
+    {"metric": "insighthub:http_error_ratio:current", "labels": {}, "timestamp": "2026-09-27T17:11:05.000Z", "value": 0.0},
+    {"metric": "insighthub:http_error_ratio:upper_band_1h", "labels": {}, "timestamp": "2026-09-27T17:11:05.000Z", "value": 0.001},
+    {"metric": "insighthub:http_error_ratio:current", "labels": {}, "timestamp": "2026-09-27T17:16:15.000Z", "value": 0.19806073402827598},
+    {"metric": "insighthub:http_error_ratio:upper_band_1h", "labels": {}, "timestamp": "2026-09-27T17:16:16.000Z", "value": 0.12135415620561392},
+    {"metric": "insighthub:http_error_ratio:current", "labels": {}, "timestamp": "2026-09-27T17:19:54.000Z", "value": 0.0}
+  ],
+  "root_cause": "The local-only Day 4 hook was enabled and requests with X-InsightHub-Chaos: http-error intentionally returned HTTP 503. The hook was then disabled through Helm.",
+  "mitigation": "Restore DAY4_CHAOS_ENABLED=false and verify the API rollout, current error ratio, and alert state.",
+  "evidence_interpretation": "At 17:16 the current error ratio (0.1981) exceeded the contemporaneous 1-hour upper band (0.1214). After recovery the current ratio was 0."
+}

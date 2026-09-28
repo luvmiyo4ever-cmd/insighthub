@@ -59,6 +59,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   value: {{ .Values.runtime.llmMaxTokens | quote }}
 - name: PROVIDER_TIMEOUT_SECONDS
   value: {{ .Values.runtime.providerTimeoutSeconds | quote }}
+- name: WORKER_METRICS_PORT
+  value: {{ .Values.runtime.workerMetricsPort | quote }}
+- name: LLM_INPUT_COST_USD_PER_MILLION_TOKENS
+  value: {{ .Values.runtime.llmInputCostUsdPerMillionTokens | quote }}
+- name: LLM_OUTPUT_COST_USD_PER_MILLION_TOKENS
+  value: {{ .Values.runtime.llmOutputCostUsdPerMillionTokens | quote }}
+- name: EMBEDDING_COST_USD_PER_MILLION_TOKENS
+  value: {{ .Values.runtime.embeddingCostUsdPerMillionTokens | quote }}
 - name: CHUNK_SIZE
   value: {{ .Values.runtime.chunkSize | quote }}
 - name: CHUNK_OVERLAP

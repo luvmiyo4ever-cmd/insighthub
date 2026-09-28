@@ -39,7 +39,7 @@ spec:
       containers:
         - name: postgres
           image: {{ .Values.postgres.image }}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.postgres.imagePullPolicy }}
           ports:
             - name: postgres
               containerPort: 5432

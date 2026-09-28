@@ -1,0 +1,10 @@
+# Local Docker Desktop only. Keep Grafana inside kube-prometheus-stack so its
+# default datasource reaches the in-cluster Prometheus service directly.
+grafana:
+  enabled: true
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL

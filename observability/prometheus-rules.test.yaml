@@ -1,0 +1,32 @@
+rule_files:
+  - prometheus-rules.yaml
+
+evaluation_interval: 30s
+
+tests:
+  - interval: 30s
+    input_series:
+      - series: 'insighthub_ingestion_queue_depth{namespace="insighthub"}'
+        values: '7+0x122'
+      - series: 'insighthub_http_requests_total{namespace="insighthub",status="200"}'
+        values: '0+10x122'
+      - series: 'insighthub_http_requests_total{namespace="insighthub",status="500"}'
+        values: '0+1x122'
+      - series: 'insighthub_llm_call_latency_seconds_bucket{namespace="insighthub",le="0.1"}'
+        values: '0+0x122'
+      - series: 'insighthub_llm_call_latency_seconds_bucket{namespace="insighthub",le="0.25"}'
+        values: '0+0x122'
+      - series: 'insighthub_llm_call_latency_seconds_bucket{namespace="insighthub",le="0.5"}'
+        values: '0+0x122'
+      - series: 'insighthub_llm_call_latency_seconds_bucket{namespace="insighthub",le="1"}'
+        values: '0+1x122'
+      - series: 'insighthub_llm_call_latency_seconds_bucket{namespace="insighthub",le="2.5"}'
+        values: '0+1x122'
+      - series: 'insighthub_llm_call_latency_seconds_bucket{namespace="insighthub",le="+Inf"}'
+        values: '0+1x122'
+    promql_expr_test:
+      - expr: insighthub:queue_depth:current
+        eval_time: 10m
+        exp_samples:
+          - labels: 'insighthub:queue_depth:current{}'
+            value: 7

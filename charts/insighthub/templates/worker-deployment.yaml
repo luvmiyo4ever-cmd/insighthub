@@ -25,6 +25,9 @@ spec:
           image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
           imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
           command: ["arq", "app.worker.WorkerSettings"]
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.runtime.workerMetricsPort }}
           env:
             {{- include "insighthub.runtimeEnv" . | nindent 12 }}
             {{- range $key, $value := .Values.worker.env }}
@@ -74,3 +77,19 @@ spec:
             volumeAttributes:
               secretProviderClass: {{ include "insighthub.fullname" . }}-secrets
       {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "insighthub.fullname" . }}-worker
+  labels:
+    {{- include "insighthub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingestion-worker
+spec:
+  ports:
+    - name: metrics
+      port: {{ .Values.runtime.workerMetricsPort }}
+      targetPort: metrics
+  selector:
+    {{- include "insighthub.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ingestion-worker
