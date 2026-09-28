@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chatops-mutator
+  namespace: insighthub
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: chatops-mutator-scale-api
+  namespace: insighthub
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    resourceNames: ["insighthub-api"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: chatops-mutator-scale-api
+  namespace: insighthub
+subjects:
+  - kind: ServiceAccount
+    name: chatops-mutator
+    namespace: insighthub
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: chatops-mutator-scale-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatops-mutator
+  namespace: insighthub
+  labels:
+    app.kubernetes.io/name: chatops-mutator
+    app.kubernetes.io/component: approved-mutator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: chatops-mutator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: chatops-mutator
+        app.kubernetes.io/component: approved-mutator
+    spec:
+      serviceAccountName: chatops-mutator
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mutator
+          # Reuse the exact local API image already present in docker-desktop.
+          # The generated local ConfigMap mounts only the mutator module; no
+          # registry pull or image import is needed for this local lab.
+          image: insighthub/api:day4-chaos-queue-20260928
+          imagePullPolicy: IfNotPresent
+          command: ["uvicorn", "app.mutator:app", "--host", "0.0.0.0", "--port", "8080"]
+          env:
+            - name: CHATOPS_MUTATION_SIGNING_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: chatops-mutator-auth
+                  key: shared-secret
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: mutator-code
+              mountPath: /app/app/mutator.py
+              subPath: mutator.py
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: mutator-code
+          configMap:
+            name: chatops-mutator-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatops-mutator
+  namespace: insighthub
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: chatops-mutator
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Docker Desktop local-only egress to its verified Kubernetes API endpoint.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chatops-mutator-api-egress-local
+  namespace: insighthub
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chatops-mutator
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 172.19.0.5/32
+      ports:
+        - protocol: TCP
+          port: 6443

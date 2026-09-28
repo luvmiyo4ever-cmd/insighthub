@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chatops-kubernetes-mcp-api-egress-local
+  namespace: insighthub
+  labels:
+    app.kubernetes.io/name: chatops-kubernetes-mcp
+    app.kubernetes.io/part-of: insighthub
+spec:
+  # Docker Desktop's Kubernetes API endpoint for this local cluster. This is
+  # deliberately a separate local-only manifest: a managed cluster must use
+  # its own approved API endpoint/network policy rather than reusing this CIDR.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chatops-kubernetes-mcp
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 172.19.0.5/32
+      ports:
+        - protocol: TCP
+          port: 6443

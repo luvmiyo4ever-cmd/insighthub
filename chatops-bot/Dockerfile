@@ -12,8 +12,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --require-hashes -r requirements.txt
 
 FROM base AS runtime
+ENV CHATOPS_AUDIT_LOG_PATH=/app/audit/chatops-audit.log
 RUN groupadd --system --gid 1001 botuser \
-    && useradd --system --uid 1001 --gid botuser botuser
+    && useradd --system --uid 1001 --gid botuser botuser \
+    && mkdir --parents /app/audit \
+    && chown botuser:botuser /app/audit
 
 COPY --from=deps /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=deps /usr/local/bin /usr/local/bin

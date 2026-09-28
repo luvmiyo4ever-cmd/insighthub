@@ -259,3 +259,16 @@ phần Day 1.
   drift detection, rollback và ownership).
 * Chỉ chạy `python scripts/verify.py day4 --prometheus-url URL` sau khi đã có
   evidence manifest, ba RCA thật và hash tương ứng.
+
+## Day 5 - ChatOps và Incident Response
+
+Day 5 giữ nguyên API, Redis queue, retry, embedding identity và năm thành phần Day 1.
+
+* `chatops-bot` nhận Slack Events qua `/slack/events`, verify raw body, signature và timestamp trước khi parse; từ chối request cũ quá năm phút.
+* ACK Slack phải tách khỏi xử lý: event hợp lệ enqueue Redis `arq:chatops`, dedup theo `event_id`; worker dùng retry có giới hạn mới gọi backend và trả lời.
+* Chỉ hỗ trợ intent allow-list: health (Prometheus MCP), ingestion hôm nay (API nội bộ fixed origin), pod lỗi (Kubernetes MCP). Không lấy URL, tool, namespace hoặc tham số từ Slack text.
+* Kubernetes MCP chỉ đọc và chỉ scope namespace `insighthub`. Audit JSONL persistent tại `/app/audit/chatops-audit.log` chỉ ghi dữ liệu an toàn; không ghi secret, Slack text, document content hoặc raw MCP output.
+* Read tự động; `scale api to 1..5` cần approval Redis 60 giây, bind user/action/replicas và one-time. Lệnh destructive bị chặn.
+* Scale chỉ qua identity `chatops-mutator`, RBAC namespace chỉ `get`, `patch` `deployments/scale` cho resource `insighthub-api`; không dùng lại Slack secret.
+* Evidence local hiện có: MH8 audit, MH9 scale `1→2→1`, MH10 `pytest` 28 pass. MH5/MH6, luồng Slack của MH7 và MH11 chỉ được gọi hoàn thành khi có ảnh hoặc Loom thật.
+* Nguồn: `chatops-bot/`, `deploy/chatops-mcp/`, `deploy/chatops-mutator/`, `docs/day5/`.

@@ -118,6 +118,51 @@ services:
         condition: service_healthy
     mem_limit: 512m
 
+  chatops-bot:
+    build: ./chatops-bot
+    profiles: ["chatops"]
+    environment:
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_BOT_USER_ID: ${SLACK_BOT_USER_ID:-}
+      REDIS_URL: redis://redis:6379/1
+      INSIGHTHUB_API_URL: http://api:8000
+      MCP_KUBERNETES_URL: ${MCP_KUBERNETES_URL:-http://host.docker.internal:18081/mcp}
+      MCP_PROMETHEUS_URL: ${MCP_PROMETHEUS_URL:-http://host.docker.internal:18082/mcp}
+    ports:
+      - "127.0.0.1:${CHATOPS_PORT:-8080}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    mem_limit: 256m
+
+  chatops-worker:
+    build: ./chatops-bot
+    profiles: ["chatops"]
+    command: arq app.worker.WorkerSettings
+    environment:
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      REDIS_URL: redis://redis:6379/1
+      INSIGHTHUB_API_URL: http://api:8000
+      MCP_KUBERNETES_URL: ${MCP_KUBERNETES_URL:-http://host.docker.internal:18081/mcp}
+      MCP_PROMETHEUS_URL: ${MCP_PROMETHEUS_URL:-http://host.docker.internal:18082/mcp}
+      CHATOPS_AUDIT_LOG_PATH: ${CHATOPS_AUDIT_LOG_PATH:-/app/audit/chatops-audit.log}
+      CHATOPS_MUTATOR_URL: ${CHATOPS_MUTATOR_URL:-http://host.docker.internal:18083/v1/actions/scale-api}
+      CHATOPS_MUTATION_SIGNING_SECRET: ${CHATOPS_MUTATION_SIGNING_SECRET:-}
+    volumes:
+      - chatops-audit:/app/audit
+    depends_on:
+      redis:
+        condition: service_healthy
+    # The image healthcheck targets the HTTP bot; this service is an ARQ process.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys; sys.exit(0 if any('arq app.worker.WorkerSettings' in open('/proc/'+p+'/cmdline','rb').read().decode(errors='ignore') for p in os.listdir('/proc') if p.isdigit()) else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    mem_limit: 256m
+
   ollama:
     image: ollama/ollama:0.33.3@sha256:32931b46719f673c05fdbaa81ccb26da18ea4a1c57590a754874ab28ba269eb2
     profiles: ["ollama"]
@@ -163,3 +208,4 @@ services:
 volumes:
   pgdata:
   ollama-data:
+  chatops-audit:
