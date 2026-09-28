@@ -41,6 +41,29 @@ ingestion_errors_total = Counter(
     "insighthub_ingestion_errors_total",
     "Failed processing attempts",
 )
+ingestion_jobs_total = Counter(
+    "insighthub_ingestion_jobs_total",
+    "Completed ingestion jobs by terminal status",
+    ["status"],
+)
+ingestion_processing_duration = Histogram(
+    "insighthub_ingestion_processing_duration_seconds",
+    "Time spent processing one ingestion job",
+    buckets=(0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300),
+)
+ingestion_worker_up = Gauge(
+    "insighthub_ingestion_worker_up",
+    "Whether this worker process is serving ARQ jobs",
+)
+ingestion_queue_depth = Gauge(
+    "insighthub_ingestion_queue_depth",
+    "ARQ jobs currently waiting in the configured queue",
+)
+ai_cost_estimated_usd_total = Counter(
+    "insighthub_ai_cost_estimated_usd_total",
+    "Estimated AI spend from operator-configured token unit prices, not billing data",
+    ["provider", "operation"],
+)
 
 
 def record_embedding_usage(provider, input_type, tokens, texts):
@@ -49,4 +72,12 @@ def record_embedding_usage(provider, input_type, tokens, texts):
     else:
         embedding_estimated_tokens_total.labels(provider, input_type).inc(
             sum(len(text.split()) / 0.75 for text in texts)
+        )
+
+
+def record_estimated_cost(provider, operation, tokens, usd_per_million_tokens):
+    """Record only configured price estimates; never infer provider billing."""
+    if tokens is not None and usd_per_million_tokens > 0:
+        ai_cost_estimated_usd_total.labels(provider, operation).inc(
+            tokens * usd_per_million_tokens / 1_000_000
         )

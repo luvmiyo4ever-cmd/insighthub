@@ -31,6 +31,12 @@ runtime:
   embeddingRevision: "1"
   llmMaxTokens: 1024
   providerTimeoutSeconds: "60"
+  workerMetricsPort: 8001
+  # Optional unit prices for the estimated-cost metric. Keep 0 until an
+  # operator deliberately supplies a reviewed price card.
+  llmInputCostUsdPerMillionTokens: 0
+  llmOutputCostUsdPerMillionTokens: 0
+  embeddingCostUsdPerMillionTokens: 0
   chunkSize: 800
   chunkOverlap: 100
   retrievalTopK: 5
@@ -41,9 +47,59 @@ runtime:
     name: insighthub-runtime-secrets
     key: REDIS_URL
 
+# Prometheus Operator resources are opt-in so the base chart remains usable in
+# clusters that do not install the ServiceMonitor CRD. Set additionalLabels to
+# the selector labels used by the installed Prometheus instance (for example,
+# a release label from kube-prometheus-stack).
+observability:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    prometheusNamespace: monitoring
+    additionalLabels: {}
+  rules:
+    enabled: false
+    namespace: monitoring
+    # Must match the Prometheus ruleSelector (for kube-prometheus-stack,
+    # normally the Helm release label).
+    additionalLabels: {}
+  exporters:
+    redis:
+      enabled: false
+      image: oliver006/redis_exporter:v1.77.0-alpine
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+    postgres:
+      enabled: false
+      image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          cpu: 150m
+          memory: 192Mi
+    blackbox:
+      enabled: false
+      image: quay.io/prometheus/blackbox-exporter:v0.28.0
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
 postgres:
   enabled: false
   image: pgvector/pgvector:0.8.2-pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+  imagePullPolicy: IfNotPresent
   servicePort: 5432
   storage:
     size: 2Gi

@@ -1,0 +1,79 @@
+groups:
+  - name: insighthub.anomaly-bands
+    interval: 30s
+    rules:
+      - record: insighthub:llm_latency_p95_seconds:current
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(insighthub_llm_call_latency_seconds_bucket{namespace="insighthub"}[5m]))
+          )
+      - record: insighthub:llm_latency_p95_seconds:baseline_1h
+        expr: avg_over_time(insighthub:llm_latency_p95_seconds:current[1h])
+      - record: insighthub:llm_latency_p95_seconds:stddev_1h
+        expr: stddev_over_time(insighthub:llm_latency_p95_seconds:current[1h])
+      - record: insighthub:llm_latency_p95_seconds:upper_band_1h
+        expr: clamp_min(insighthub:llm_latency_p95_seconds:baseline_1h + 3 * insighthub:llm_latency_p95_seconds:stddev_1h, 0.001)
+      - record: insighthub:queue_depth:current
+        expr: max(insighthub_ingestion_queue_depth{namespace="insighthub"})
+      - record: insighthub:queue_depth:baseline_1h
+        expr: avg_over_time(insighthub:queue_depth:current[1h])
+      - record: insighthub:queue_depth:stddev_1h
+        expr: stddev_over_time(insighthub:queue_depth:current[1h])
+      - record: insighthub:queue_depth:upper_band_1h
+        expr: clamp_min(insighthub:queue_depth:baseline_1h + 3 * insighthub:queue_depth:stddev_1h, 1)
+      - record: insighthub:http_error_ratio:current
+        expr: |
+          (sum(rate(insighthub_http_requests_total{namespace="insighthub",status=~"5.."}[5m])) or vector(0))
+          /
+          clamp_min(sum(rate(insighthub_http_requests_total{namespace="insighthub"}[5m])), 0.001)
+      - record: insighthub:http_error_ratio:baseline_1h
+        expr: avg_over_time(insighthub:http_error_ratio:current[1h])
+      - record: insighthub:http_error_ratio:stddev_1h
+        expr: stddev_over_time(insighthub:http_error_ratio:current[1h])
+      - record: insighthub:http_error_ratio:upper_band_1h
+        expr: clamp_min(insighthub:http_error_ratio:baseline_1h + 3 * insighthub:http_error_ratio:stddev_1h, 0.001)
+  - name: insighthub.anomaly-alerts
+    interval: 30s
+    rules:
+      - alert: InsightHubLlmLatencyAnomaly
+        expr: |
+          (insighthub:llm_latency_p95_seconds:current offset 1h)
+          and
+          (insighthub:llm_latency_p95_seconds:current > insighthub:llm_latency_p95_seconds:upper_band_1h)
+        for: 2m
+        labels:
+          severity: warning
+          service: insighthub
+          signal: llm_latency_p95
+        annotations:
+          summary: InsightHub LLM p95 latency is above its 3-sigma band
+          description: Investigate insighthub:llm_latency_p95_seconds:current and its 1h baseline before remediation.
+          runbook: docs/runbooks/llm-latency-anomaly.md
+      - alert: InsightHubQueueBacklogAnomaly
+        expr: |
+          (insighthub:queue_depth:current offset 1h)
+          and
+          (insighthub:queue_depth:current > insighthub:queue_depth:upper_band_1h)
+        for: 2m
+        labels:
+          severity: warning
+          service: insighthub
+          signal: ingestion_queue_depth
+        annotations:
+          summary: InsightHub ingestion queue depth is above its 3-sigma band
+          description: Investigate insighthub:queue_depth:current, worker health, and Redis before remediation.
+          runbook: docs/runbooks/queue-backlog-anomaly.md
+      - alert: InsightHubHttpErrorRateAnomaly
+        expr: |
+          (insighthub:http_error_ratio:current offset 1h)
+          and
+          (insighthub:http_error_ratio:current > insighthub:http_error_ratio:upper_band_1h)
+        for: 2m
+        labels:
+          severity: critical
+          service: insighthub
+          signal: http_error_ratio
+        annotations:
+          summary: InsightHub HTTP 5xx ratio is above its 3-sigma band
+          description: Investigate insighthub:http_error_ratio:current and API pod errors before remediation.
+          runbook: docs/runbooks/http-error-rate-anomaly.md

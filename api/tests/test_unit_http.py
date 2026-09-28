@@ -18,6 +18,30 @@ from app.services.ingestion import extract_text
 
 
 class HttpTests(unittest.TestCase):
+    def test_day4_chaos_requires_operator_enablement_and_exact_header(self):
+        contexts = [{"source": "fixture.md", "chunk_text": "fixture content"}]
+        with (
+            configured(day4_chaos_enabled=True, day4_chaos_llm_delay_seconds=5),
+            patch("app.routers.chat.retrieve", return_value=contexts),
+            patch("app.routers.chat.time.sleep") as sleep,
+        ):
+            client = TestClient(app)
+            normal = client.post("/chat", json={"question": "question"})
+            delayed = client.post(
+                "/chat",
+                json={"question": "question"},
+                headers={"X-InsightHub-Chaos": "llm-latency"},
+            )
+            errored = client.post(
+                "/chat",
+                json={"question": "question"},
+                headers={"X-InsightHub-Chaos": "http-error"},
+            )
+        self.assertEqual(normal.status_code, 200)
+        self.assertEqual(delayed.status_code, 200)
+        self.assertEqual(errored.status_code, 503)
+        sleep.assert_called_once_with(5)
+
     def test_whitespace_question_and_unknown_fields_rejected(self):
         client = TestClient(app)
         for data in (

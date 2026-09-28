@@ -1,0 +1,25 @@
+{
+  "incident_id": "incident-2-queue-backlog",
+  "status": "resolved",
+  "started_at": "2026-09-27T17:29:37.000Z",
+  "ended_at": "2026-09-27T17:36:31.327Z",
+  "scenario": "Controlled ingestion queue backlog in the local Kubernetes lab",
+  "hypotheses": [
+    "The queue-backlog anomaly was caused by an operator-enabled, bounded 30-second worker delay while 100 valid Markdown uploads were accepted with HTTP 202.",
+    "Removing the worker delay while keeping the worker replica available would drain the ARQ queue and clear the anomaly without changing queue names or retry behavior."
+  ],
+  "samples": [
+    {"metric": "insighthub:queue_depth:current", "labels": {}, "timestamp": "2026-09-27T17:33:20.000Z", "value": 70.0},
+    {"metric": "insighthub:queue_depth:upper_band_1h", "labels": {}, "timestamp": "2026-09-27T17:33:20.000Z", "value": 59.741530174727835},
+    {"metric": "insighthub:queue_depth:current", "labels": {}, "timestamp": "2026-09-27T17:36:31.327Z", "value": 1.0},
+    {
+      "metric": "insighthub_ingestion_queue_depth",
+      "labels": {"container": "ingestion-worker", "endpoint": "metrics", "instance": "10.244.0.47:8001", "job": "insighthub-worker", "namespace": "insighthub", "pod": "insighthub-worker-5f7f5bb667-khctf", "service": "insighthub-worker"},
+      "timestamp": "2026-09-27T17:36:31.327Z",
+      "value": 1.0
+    }
+  ],
+  "root_cause": "A local, opt-in worker delay preserved the worker metrics endpoint but reduced ingestion throughput below the controlled upload rate. Prometheus recorded a pending state and then a firing InsightHubQueueBacklogAnomaly before the hook was removed.",
+  "mitigation": "Deploy the same image with DAY4_CHAOS_ENABLED=false and DAY4_CHAOS_WORKER_DELAY_SECONDS=0; wait for the worker to drain the ARQ sorted-set queue and verify the alert clears.",
+  "evidence_interpretation": "At 17:33:20 the recorded queue depth (70) was above the contemporaneous dynamic upper band (59.74); the rule was later observed firing after its hold period. Recovery samples show both recording and worker gauges at 1."
+}

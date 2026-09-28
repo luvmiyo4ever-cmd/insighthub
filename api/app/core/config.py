@@ -57,6 +57,20 @@ class Settings(BaseSettings):
     provider_timeout_seconds: float = Field(
         default=60, gt=0, le=300, allow_inf_nan=False
     )
+    worker_metrics_port: int = Field(default=8001, ge=1024, le=65535)
+    # Day 4 lab hooks are inert unless an operator explicitly enables them.
+    # They are scoped again by an exact request header in the chat router.
+    day4_chaos_enabled: bool = False
+    day4_chaos_llm_delay_seconds: float = Field(default=0, ge=0, le=60)
+    # The worker-only delay is an operator-controlled lab hook. It allows a
+    # queue backlog to be observed while the worker and its metrics endpoint
+    # remain available; normal runs keep it at zero.
+    day4_chaos_worker_delay_seconds: float = Field(default=0, ge=0, le=60)
+    # Unit prices are deliberately operator supplied. They are not provider billing
+    # data and therefore default to zero (no cost series is emitted).
+    llm_input_cost_usd_per_million_tokens: float = Field(default=0, ge=0)
+    llm_output_cost_usd_per_million_tokens: float = Field(default=0, ge=0)
+    embedding_cost_usd_per_million_tokens: float = Field(default=0, ge=0)
     embedding_batch_size: int = Field(default=32, ge=1, le=100)
     chunk_size: int = Field(default=800, ge=2, le=8000)
     chunk_overlap: int = Field(default=100, ge=0)

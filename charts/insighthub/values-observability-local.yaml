@@ -1,0 +1,41 @@
+# Apply only after a Prometheus Operator is installed in the local cluster.
+observability:
+  serviceMonitor:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+  rules:
+    enabled: true
+    namespace: monitoring
+    additionalLabels:
+      release: kube-prometheus-stack
+  exporters:
+    redis:
+      enabled: true
+    postgres:
+      enabled: true
+    blackbox:
+      enabled: true
+
+# Docker Desktop Kubernetes may retain a previous platform manifest under the
+# same repository name. The local run pins the amd64 digest at deploy time and
+# must pull it instead of accepting that stale cache.
+postgres:
+  image: insighthub/postgres:mh12-pgvector
+  imagePullPolicy: IfNotPresent
+
+migration:
+  image: insighthub/postgres:mh12-pgvector
+
+# Docker Desktop images built for the local observability lab. The base local
+# values retain `kind` for the kind-lab workflow; this overlay is intentionally
+# paired with the Docker Desktop images used for Prometheus verification.
+api:
+  image:
+    tag: mh12
+worker:
+  image:
+    tag: mh12
+web:
+  image:
+    tag: mh12

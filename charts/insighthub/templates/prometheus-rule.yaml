@@ -1,0 +1,15 @@
+{{- if .Values.observability.rules.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "insighthub.fullname" . }}-anomaly-bands
+  namespace: {{ .Values.observability.rules.namespace | quote }}
+  labels:
+    {{- include "insighthub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observability
+    {{- with .Values.observability.rules.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+{{ .Files.Get "files/insighthub-anomaly-rules.yaml" | indent 2 }}
+{{- end }}

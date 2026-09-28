@@ -1,0 +1,10 @@
+# Local Day 4 lab only. Both safeguards stay false/zero until an operator
+# explicitly overrides them for a bounded incident run.
+api:
+  env:
+    DAY4_CHAOS_ENABLED: "false"
+    DAY4_CHAOS_LLM_DELAY_SECONDS: "0"
+worker:
+  env:
+    DAY4_CHAOS_ENABLED: "false"
+    DAY4_CHAOS_WORKER_DELAY_SECONDS: "0"

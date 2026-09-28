@@ -5,7 +5,7 @@ import math
 
 from app.core.config import get_settings
 from app.core.errors import ProviderError
-from app.core.metrics import record_embedding_usage
+from app.core.metrics import record_embedding_usage, record_estimated_cost
 from app.core.providers import indexed_embeddings, post_json, token_count
 
 
@@ -152,6 +152,12 @@ def embed(texts: list[str], input_type: str = "document") -> list[list[float]]:
                 raw, tokens = _real_embed(batch, input_type, settings)
             record_embedding_usage(
                 settings.embedding_provider, input_type, tokens, batch
+            )
+            record_estimated_cost(
+                settings.embedding_provider,
+                "embedding",
+                tokens,
+                settings.embedding_cost_usd_per_million_tokens,
             )
             vectors.extend(validate_vectors(raw, len(batch), settings.embedding_dim))
         except ProviderError:

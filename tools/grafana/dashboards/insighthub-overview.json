@@ -1,0 +1,27 @@
+{
+  "annotations": {"list": [{"name": "Deployments", "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "expr": "changes(kube_deployment_status_observed_generation{namespace=~\"$namespace\"}[5m]) > 0", "iconColor": "#5794F2", "tagKeys": "deployment", "titleFormat": "Deployment {{deployment}}", "textFormat": "A Kubernetes deployment generation was observed."}]},
+  "description": "Operational dashboard. Cost is emitted only from operator-configured token prices and is not a provider invoice. Pod and deployment panels require kube-state-metrics/cAdvisor, as supplied by kube-prometheus-stack.",
+  "editable": false,
+  "panels": [
+    {"id": 1, "title": "Request rate", "type": "timeseries", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum(rate(insighthub_http_requests_total[5m]))", "legendFormat": "requests/s"}], "fieldConfig": {"defaults": {"unit": "reqps"}}},
+    {"id": 2, "title": "Error rate (5xx)", "type": "timeseries", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum(rate(insighthub_http_requests_total{status=~\"5..\"}[5m]))", "legendFormat": "errors/s"}], "fieldConfig": {"defaults": {"unit": "ops"}}},
+    {"id": 3, "title": "RAG average duration", "type": "timeseries", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum(rate(insighthub_rag_query_latency_seconds_sum[5m])) / sum(rate(insighthub_rag_query_latency_seconds_count[5m]))", "legendFormat": "average"}], "fieldConfig": {"defaults": {"unit": "s"}}},
+    {"id": 4, "title": "ARQ queue depth", "type": "stat", "gridPos": {"h": 8, "w": 6, "x": 0, "y": 8}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "max(insighthub_ingestion_queue_depth)", "legendFormat": "waiting jobs"}], "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 10}, {"color": "red", "value": 50}]}}}},
+    {"id": 5, "title": "Token usage", "type": "timeseries", "gridPos": {"h": 8, "w": 6, "x": 6, "y": 8}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum by (provider, direction) (rate(insighthub_llm_tokens_total[5m]))", "legendFormat": "{{provider}} {{direction}}"}, {"refId": "B", "expr": "sum by (provider, input_type) (rate(insighthub_embedding_tokens_total[5m]))", "legendFormat": "embed {{provider}} {{input_type}}"}], "fieldConfig": {"defaults": {"unit": "ops"}}},
+    {"id": 6, "title": "RAG latency p95", "type": "timeseries", "gridPos": {"h": 8, "w": 6, "x": 12, "y": 8}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(insighthub_rag_query_latency_seconds_bucket[5m])))", "legendFormat": "p95"}], "fieldConfig": {"defaults": {"unit": "s"}}},
+    {"id": 7, "title": "Estimated AI cost", "description": "Only present when LLM_*_COST_USD_PER_MILLION_TOKENS or EMBEDDING_COST_USD_PER_MILLION_TOKENS is configured. This is an estimate, not billing data.", "type": "timeseries", "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum by (provider, operation) (rate(insighthub_ai_cost_estimated_usd_total[5m])) * 3600", "legendFormat": "{{provider}} {{operation}} / hour"}], "fieldConfig": {"defaults": {"unit": "currencyUSD"}}},
+    {"id": 8, "title": "Pod CPU", "description": "Kubernetes only: requires cAdvisor metrics.", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", container!=\"\", image!=\"\"}[5m]))", "legendFormat": "{{pod}}"}], "fieldConfig": {"defaults": {"unit": "cores"}}},
+    {"id": 9, "title": "Pod memory", "description": "Kubernetes only: requires cAdvisor metrics.", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=~\"$namespace\", container!=\"\", image!=\"\"})", "legendFormat": "{{pod}}"}], "fieldConfig": {"defaults": {"unit": "bytes"}}},
+    {"id": 10, "title": "Ingestion outcomes", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum by (status) (rate(insighthub_ingestion_jobs_total[5m]))", "legendFormat": "{{status}}/s"}], "fieldConfig": {"defaults": {"unit": "ops"}}},
+    {"id": 11, "title": "Ingestion duration p95", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}, "datasource": {"uid": "prometheus"}, "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(insighthub_ingestion_processing_duration_seconds_bucket[5m])))", "legendFormat": "p95"}], "fieldConfig": {"defaults": {"unit": "s"}}}
+  ],
+  "refresh": "15s",
+  "schemaVersion": 41,
+  "tags": ["insighthub", "rag", "observability"],
+  "templating": {"list": [{"name": "namespace", "type": "custom", "label": "Namespace", "query": "insighthub", "current": {"text": "insighthub", "value": "insighthub"}, "hide": 0}]},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "InsightHub Overview",
+  "uid": "insighthub-overview",
+  "version": 1
+}
