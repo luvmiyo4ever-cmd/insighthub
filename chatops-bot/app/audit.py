@@ -1,16 +1,39 @@
-"""
-InsightHub ChatOps Bot — Audit log (SKELETON)
-
-Mọi tool call của bot PHẢI được ghi audit. Đây là yêu cầu bảo mật cốt lõi:
-khi AI agent có quyền chạm vào hạ tầng, phải có dấu vết kiểm toán.
-
-TODO Day 5: hoàn thiện theo gợi ý dưới.
-"""
+"""Structured audit output for every bounded ChatOps tool call."""
 import json
 import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 
-logger = logging.getLogger("chatops-bot.audit")
+AUDIT_LOG_PATH = Path(os.environ.get("CHATOPS_AUDIT_LOG_PATH", "/app/audit/chatops-audit.log"))
+
+
+def _configure_logger() -> logging.Logger:
+    """Send one compact JSON line to stdout and the persistent audit file."""
+    logger = logging.getLogger("chatops-bot.audit")
+    logger.setLevel(logging.INFO)
+    if logger.handlers:
+        return logger
+    formatter = logging.Formatter("%(message)s")
+    stdout = logging.StreamHandler()
+    stdout.setFormatter(formatter)
+    try:
+        AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(AUDIT_LOG_PATH, encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError("ChatOps audit log file is not writable.") from exc
+    file_handler.setFormatter(formatter)
+    logger.addHandler(stdout)
+    logger.addHandler(file_handler)
+    logger.propagate = False
+    return logger
+
+
+logger = _configure_logger()
+
+
+def _write_record(record: dict) -> None:
+    logger.info(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
 
 
 def log_tool_call(
@@ -20,18 +43,7 @@ def log_tool_call(
     result_summary: str,
     approved: bool = True,
 ) -> None:
-    """
-    Ghi 1 dòng audit cho mỗi tool call.
-
-    TODO Day 5:
-    - Ghi ra file hoặc stdout dạng structured JSON (mỗi dòng 1 record).
-    - Trong production thật: đẩy sang log aggregator (Loki...).
-    - Trường tối thiểu: timestamp, user, tool, args, kết quả, approved.
-
-    Ví dụ record:
-      {"ts": "...", "user": "U123", "tool": "kubectl_get_pods",
-       "args": {...}, "result": "5 pods Running", "approved": true}
-    """
+    """Write one JSON record without logging secrets, content, or tool output."""
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "user": user,
@@ -40,5 +52,21 @@ def log_tool_call(
         "result": result_summary,
         "approved": approved,
     }
-    # TODO: thay bằng ghi file / gửi log aggregator
-    logger.info("AUDIT %s", json.dumps(record, ensure_ascii=False))
+    _write_record(record)
+
+
+def log_permission_decision(
+    user: str, tier: str, action: str, args: dict, result_summary: str, approved: bool
+) -> None:
+    """Record a decision without storing a confirmation token or Slack text."""
+    _write_record(
+        {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "user": user,
+            "tier": tier,
+            "action": action,
+            "args": args,
+            "result": result_summary,
+            "approved": approved,
+        }
+    )
