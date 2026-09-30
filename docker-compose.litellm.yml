@@ -1,0 +1,43 @@
+name: insighthub-litellm
+
+services:
+  litellm-postgres:
+    image: pgvector/pgvector:0.8.2-pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${LITELLM_DB_USER:?LITELLM_DB_USER is required}
+      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD:?LITELLM_DB_PASSWORD is required}
+      POSTGRES_DB: ${LITELLM_DB_NAME:-litellm}
+    volumes:
+      - litellm-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  litellm:
+    image: docker.litellm.ai/berriai/litellm:v1.90.2
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      DATABASE_URL: postgresql://${LITELLM_DB_USER}:${LITELLM_DB_PASSWORD}@litellm-postgres:5432/${LITELLM_DB_NAME:-litellm}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?LITELLM_SALT_KEY is required}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./security/litellm-config.yaml:/app/config.yaml:ro
+    ports:
+      - "127.0.0.1:${LITELLM_PORT:-4000}:4000"
+    depends_on:
+      litellm-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+volumes:
+  litellm-pgdata:

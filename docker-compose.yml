@@ -82,16 +82,20 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
       VOYAGE_EMBEDDING_MODEL: ${VOYAGE_EMBEDDING_MODEL:-voyage-3.5}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-mxbai-embed-large}
       PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-60}
       LLM_INPUT_COST_USD_PER_MILLION_TOKENS: ${LLM_INPUT_COST_USD_PER_MILLION_TOKENS:-0}
       LLM_OUTPUT_COST_USD_PER_MILLION_TOKENS: ${LLM_OUTPUT_COST_USD_PER_MILLION_TOKENS:-0}
       EMBEDDING_COST_USD_PER_MILLION_TOKENS: ${EMBEDDING_COST_USD_PER_MILLION_TOKENS:-0}
     command: arq app.worker.WorkerSettings
+    ports:
+      - "127.0.0.1:${WORKER_METRICS_HOST_PORT:-8001}:8001"
     # The shared API image exposes an HTTP healthcheck, but the ARQ worker does
     # not serve HTTP. Verify the actual worker process instead.
     healthcheck:
@@ -168,6 +172,8 @@ services:
     profiles: ["ollama"]
     volumes:
       - ollama-data:/root/.ollama
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 15s

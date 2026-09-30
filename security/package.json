@@ -1,0 +1,10 @@
+{
+  "name": "insighthub-day6-security-tools",
+  "private": true,
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "devDependencies": {
+    "promptfoo": "0.123.1"
+  }
+}

@@ -1,0 +1,18 @@
+# Runtime guardrail contract for MH4-MH5.
+# Enforcement is provider-independent code, not a configuration-only claim.
+version: 1
+enabled: true
+implementation: api/app/services/guardrails.py
+enforced_at:
+  - before_provider_call
+  - after_provider_call
+categories:
+  - prompt-extraction
+  - pii
+  - indirect-prompt-injection
+  - excessive-agency
+policy:
+  documents_are_untrusted_data: true
+  external_actions_authorized_by_chat: false
+  hidden_instructions_disclosure: false
+  personal_data_disclosure: false

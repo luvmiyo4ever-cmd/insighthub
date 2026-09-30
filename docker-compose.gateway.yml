@@ -1,0 +1,32 @@
+# Local Day 6 runtime overlay. Supply LITELLM_MASTER_KEY from a secret-bearing
+# operator environment; never commit the value.
+services:
+  api:
+    environment:
+      RAG_MODE: real
+      LLM_PROVIDER: openai
+      LLM_MODEL: ""
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required}
+      OPENAI_BASE_URL: http://host.docker.internal:4000/v1
+      OPENAI_CHAT_MODEL: qwen2.5:3b
+      EMBEDDING_PROVIDER: ollama
+      EMBEDDING_MODEL: ""
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBEDDING_MODEL: mxbai-embed-large
+      EMBEDDING_DIM: "1024"
+      EMBEDDING_REVISION: "1"
+
+  ingestion-worker:
+    environment:
+      RAG_MODE: real
+      LLM_PROVIDER: openai
+      LLM_MODEL: ""
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required}
+      OPENAI_BASE_URL: http://host.docker.internal:4000/v1
+      OPENAI_CHAT_MODEL: qwen2.5:3b
+      EMBEDDING_PROVIDER: ollama
+      EMBEDDING_MODEL: ""
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBEDDING_MODEL: mxbai-embed-large
+      EMBEDDING_DIM: "1024"
+      EMBEDDING_REVISION: "1"
